@@ -1,0 +1,103 @@
+erDiagram
+    MEMBERS ||--o{ EXPENSE_APPLICATIONS : creates
+    DEPARTMENTS ||--o{ MEMBERS : belongs_to
+    EXPENSE_APPLICATIONS ||--o{ RECEIPTS : has
+    EXPENSE_APPLICATIONS ||--o{ APPLICATION_COMMENTS : has
+    EXPENSE_APPLICATIONS }o--|| INTERNAL_CATEGORIES : categorized_by
+    EXPENSE_APPLICATIONS ||--o| PAYMENTS : generates
+    RECEIPTS ||--o| OCR_RESULTS : has
+
+    MEMBERS {
+        int id PK
+        string member_id UK "SPC会員DB連携ID"
+        string name
+        string email
+        int department_id FK
+        string role "member, admin, manager"
+        datetime created_at
+        datetime updated_at
+        datetime last_login_at
+    }
+    
+    DEPARTMENTS {
+        int id PK
+        string name
+        string code UK
+        boolean is_active
+        datetime created_at
+        datetime updated_at
+    }
+    
+    EXPENSE_APPLICATIONS {
+        int id PK
+        int member_id FK
+        string status "draft, submitted, returned, approved, rejected"
+        date expense_date
+        decimal amount
+        decimal proposed_amount "システム提案額"
+        decimal final_amount "事務局確定額"
+        text description
+        int internal_category_id FK
+        boolean is_cash_payment
+        datetime created_at
+        datetime updated_at
+        datetime submitted_at
+        datetime approved_at
+        datetime rejected_at
+    }
+    
+    RECEIPTS {
+        int id PK
+        int expense_application_id FK
+        string file_name
+        string file_path
+        string file_url
+        bigint file_size
+        string mime_type
+        datetime created_at
+        datetime updated_at
+    }
+    
+    OCR_RESULTS {
+        int id PK
+        int receipt_id FK
+        date extracted_date
+        decimal extracted_amount
+        string extracted_store_name
+        text extracted_text
+        decimal confidence "0-1"
+        string status "pending, completed, failed"
+        datetime created_at
+        datetime updated_at
+        datetime completed_at
+    }
+    
+    INTERNAL_CATEGORIES {
+        int id PK
+        string name
+        string code UK
+        text description
+        boolean is_active
+        datetime created_at
+        datetime updated_at
+    }
+    
+    APPLICATION_COMMENTS {
+        int id PK
+        int expense_application_id FK
+        int member_id FK
+        text comment
+        string comment_type "approval, rejection, return, general"
+        datetime created_at
+    }
+    
+    PAYMENTS {
+        int id PK
+        int expense_application_id FK
+        string payment_status "pending, completed, failed"
+        date payment_date
+        text bank_data "振込データ（JSON形式）"
+        datetime created_at
+        datetime updated_at
+        datetime paid_at
+    }

@@ -1,0 +1,1188 @@
+openapi: 3.0.3
+info:
+  title: SPC 経費精算システム API
+  description: |
+    SPC経費精算システムのREST API仕様書
+    
+    ## 認証
+    すべてのAPIリクエストには認証トークンが必要です。
+    JWTトークンを `Authorization: Bearer {token}` ヘッダーで送信してください。
+    
+    ## エラーレスポンス
+    エラー時は以下の形式でレスポンスを返します：
+    ```json
+    {
+      "error": {
+        "code": "ERROR_CODE",
+        "message": "エラーメッセージ",
+        "details": {}
+      }
+    }
+    ```
+  version: 1.0.0
+  contact:
+    name: SPC開発チーム
+
+servers:
+  - url: https://api.spc-expense.example.com/v1
+    description: 本番環境
+  - url: https://api-staging.spc-expense.example.com/v1
+    description: ステージング環境
+  - url: http://localhost:3000/api/v1
+    description: ローカル開発環境
+
+tags:
+  - name: auth
+    description: 認証関連
+  - name: members
+    description: 会員情報
+  - name: expense-applications
+    description: 経費申請
+  - name: receipts
+    description: 領収書
+  - name: admin
+    description: 事務局機能
+  - name: payments
+    description: 振込管理
+
+paths:
+  # ==================== 認証 ====================
+  /auth/login:
+    post:
+      tags:
+        - auth
+      summary: ログイン
+      description: SPC会員DBと連携して認証を行い、JWTトークンを取得
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  description: ユーザー名（会員ID）
+                  example: "member001"
+                password:
+                  type: string
+                  format: password
+                  description: パスワード
+                  example: "password123"
+      responses:
+        '200':
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: 認証失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags:
+        - auth
+      summary: トークンリフレッシュ
+      description: リフレッシュトークンを使用して新しいアクセストークンを取得
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  description: リフレッシュトークン
+      responses:
+        '200':
+          description: トークン更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: トークン無効
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - auth
+      summary: ログアウト
+      description: ログアウト処理（トークンを無効化）
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: ログアウト成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "ログアウトしました"
+
+  # ==================== 会員情報 ====================
+  /members/me:
+    get:
+      tags:
+        - members
+      summary: 自分の会員情報取得
+      description: ログイン中の会員情報を取得
+      operationId: getCurrentMember
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 会員情報
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+
+  /members/me/dashboard:
+    get:
+      tags:
+        - members
+      summary: マイページダッシュボード
+      description: 申請状況のサマリーを取得
+      operationId: getDashboard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: ダッシュボード情報
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+
+  # ==================== 経費申請 ====================
+  /expense-applications:
+    get:
+      tags:
+        - expense-applications
+      summary: 申請一覧取得（会員）
+      description: 自分の経費申請一覧を取得
+      operationId: getExpenseApplications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: ステータスでフィルタ
+          schema:
+            type: string
+            enum: [draft, submitted, returned, approved, rejected]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 申請一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplicationList'
+
+    post:
+      tags:
+        - expense-applications
+      summary: 申請作成
+      description: 新しい経費申請を作成
+      operationId: createExpenseApplication
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseApplicationCreate'
+      responses:
+        '201':
+          description: 申請作成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplication'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /expense-applications/{id}:
+    get:
+      tags:
+        - expense-applications
+      summary: 申請詳細取得
+      description: 指定した申請の詳細を取得
+      operationId: getExpenseApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 申請詳細
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplication'
+        '404':
+          description: 申請が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - expense-applications
+      summary: 申請更新
+      description: 申請内容を更新（下書き・差戻し状態のみ可能）
+      operationId: updateExpenseApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseApplicationUpdate'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplication'
+        '400':
+          description: バリデーションエラーまたは更新不可な状態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - expense-applications
+      summary: 申請削除
+      description: 申請を削除（下書き状態のみ可能）
+      operationId: deleteExpenseApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 削除成功
+        '400':
+          description: 削除不可な状態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /expense-applications/{id}/submit:
+    post:
+      tags:
+        - expense-applications
+      summary: 申請送信
+      description: 申請を事務局へ送信（ステータスを「申請中」に変更）
+      operationId: submitExpenseApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 送信成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplication'
+        '400':
+          description: 送信不可な状態または必須項目不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==================== 領収書 ====================
+  /receipts:
+    post:
+      tags:
+        - receipts
+      summary: 領収書アップロード
+      description: 領収書画像をアップロード
+      operationId: uploadReceipt
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - expenseApplicationId
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 領収書画像ファイル
+                expenseApplicationId:
+                  type: integer
+                  description: 紐付ける申請ID
+      responses:
+        '201':
+          description: アップロード成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /receipts/{id}:
+    get:
+      tags:
+        - receipts
+      summary: 領収書取得
+      description: 領収書画像を取得
+      operationId: getReceipt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 領収書情報
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+        '404':
+          description: 領収書が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - receipts
+      summary: 領収書削除
+      description: 領収書を削除
+      operationId: deleteReceipt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: 削除成功
+        '400':
+          description: 削除不可な状態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /receipts/{id}/ocr:
+    post:
+      tags:
+        - receipts
+      summary: OCR実行
+      description: 領収書画像からOCRで情報を抽出
+      operationId: executeOCR
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OCR結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OCRResult'
+        '400':
+          description: OCR実行不可
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /receipts/{id}/ocr/update:
+    put:
+      tags:
+        - receipts
+      summary: OCR結果更新
+      description: OCR抽出結果を手動で修正
+      operationId: updateOCRResult
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OCRResultUpdate'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OCRResult'
+
+  # ==================== 事務局機能 ====================
+  /admin/expense-applications:
+    get:
+      tags:
+        - admin
+      summary: 申請一覧取得（事務局）
+      description: 事務局向けの申請一覧を取得（検索・フィルタ対応）
+      operationId: getAdminExpenseApplications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [submitted, returned, approved, rejected]
+        - name: memberId
+          in: query
+          schema:
+            type: integer
+        - name: departmentId
+          in: query
+          schema:
+            type: integer
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 申請一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplicationList'
+
+  /admin/expense-applications/{id}:
+    get:
+      tags:
+        - admin
+      summary: 申請詳細取得（事務局）
+      description: 事務局向けの申請詳細を取得
+      operationId: getAdminExpenseApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 申請詳細
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplicationAdmin'
+
+  /admin/expense-applications/{id}/approve:
+    post:
+      tags:
+        - admin
+      summary: 申請承認
+      description: 申請を承認
+      operationId: approveExpenseApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalRequest'
+      responses:
+        '200':
+          description: 承認成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplication'
+        '400':
+          description: 承認不可な状態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/expense-applications/{id}/reject:
+    post:
+      tags:
+        - admin
+      summary: 申請差戻し
+      description: 申請を差戻し（コメント必須）
+      operationId: rejectExpenseApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectionRequest'
+      responses:
+        '200':
+          description: 差戻し成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplication'
+        '400':
+          description: 差戻し不可な状態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/expense-applications/{id}/cancel:
+    post:
+      tags:
+        - admin
+      summary: 申請却下
+      description: 申請を却下
+      operationId: cancelExpenseApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - comment
+              properties:
+                comment:
+                  type: string
+                  description: 却下理由
+      responses:
+        '200':
+          description: 却下成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseApplication'
+        '400':
+          description: 却下不可な状態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==================== 振込管理 ====================
+  /admin/payments:
+    get:
+      tags:
+        - payments
+      summary: 振込対象一覧取得
+      description: 承認済みの申請から振込対象を抽出
+      operationId: getPaymentTargets
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: includePaid
+          in: query
+          schema:
+            type: boolean
+            default: false
+            description: 既に振込済みのものも含めるか
+      responses:
+        '200':
+          description: 振込対象一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentTargetList'
+
+  /admin/payments/generate:
+    post:
+      tags:
+        - payments
+      summary: 振込データ生成
+      description: 承認済み申請から振込データを生成（銀行フォーマット）
+      operationId: generatePaymentData
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentGenerateRequest'
+      responses:
+        '200':
+          description: 振込データ生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentData'
+        '400':
+          description: 生成不可
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT認証トークン
+
+  schemas:
+    # 認証関連
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: アクセストークン
+        refreshToken:
+          type: string
+          description: リフレッシュトークン
+        expiresIn:
+          type: integer
+          description: トークンの有効期限（秒）
+        member:
+          $ref: '#/components/schemas/Member'
+
+    # 会員
+    Member:
+      type: object
+      properties:
+        id:
+          type: integer
+        memberId:
+          type: string
+          description: 会員ID（SPC会員DB連携）
+        name:
+          type: string
+          description: 氏名
+        email:
+          type: string
+          format: email
+        departmentId:
+          type: integer
+        department:
+          $ref: '#/components/schemas/Department'
+        role:
+          type: string
+          enum: [member, admin, manager]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Department:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Dashboard:
+      type: object
+      properties:
+        totalApplications:
+          type: integer
+          description: 総申請数
+        pendingApplications:
+          type: integer
+          description: 申請中
+        approvedApplications:
+          type: integer
+          description: 承認済
+        returnedApplications:
+          type: integer
+          description: 差戻し
+        totalAmount:
+          type: number
+          format: float
+          description: 総申請金額
+
+    # 経費申請
+    ExpenseApplication:
+      type: object
+      properties:
+        id:
+          type: integer
+        memberId:
+          type: integer
+        member:
+          $ref: '#/components/schemas/Member'
+        status:
+          type: string
+          enum: [draft, submitted, returned, approved, rejected]
+          description: |
+            - draft: 下書き
+            - submitted: 申請中
+            - returned: 差戻し
+            - approved: 承認済
+            - rejected: 却下
+        expenseDate:
+          type: string
+          format: date
+          description: 経費発生日
+        amount:
+          type: number
+          format: float
+          description: 申請金額
+        proposedAmount:
+          type: number
+          format: float
+          description: システム提案補助金額
+        finalAmount:
+          type: number
+          format: float
+          description: 事務局確定補助金額
+        description:
+          type: string
+          description: 申請内容説明
+        internalCategoryId:
+          type: integer
+          nullable: true
+        internalCategory:
+          $ref: '#/components/schemas/InternalCategory'
+        receipts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Receipt'
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicationComment'
+        isCashPayment:
+          type: boolean
+          default: false
+          description: 現金対応フラグ
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ExpenseApplicationCreate:
+      type: object
+      required:
+        - expenseDate
+        - amount
+        - description
+      properties:
+        expenseDate:
+          type: string
+          format: date
+        amount:
+          type: number
+          format: float
+        description:
+          type: string
+
+    ExpenseApplicationUpdate:
+      type: object
+      properties:
+        expenseDate:
+          type: string
+          format: date
+        amount:
+          type: number
+          format: float
+        description:
+          type: string
+
+    ExpenseApplicationList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseApplication'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+
+    ExpenseApplicationAdmin:
+      allOf:
+        - $ref: '#/components/schemas/ExpenseApplication'
+        - type: object
+          properties:
+            canApprove:
+              type: boolean
+              description: 承認可能か
+            canReject:
+              type: boolean
+              description: 差戻し可能か
+
+    ApprovalRequest:
+      type: object
+      required:
+        - internalCategoryId
+        - finalAmount
+      properties:
+        internalCategoryId:
+          type: integer
+          description: 社内カテゴリID
+        finalAmount:
+          type: number
+          format: float
+          description: 確定補助金額
+        comment:
+          type: string
+          description: 承認コメント（任意）
+
+    RejectionRequest:
+      type: object
+      required:
+        - comment
+      properties:
+        comment:
+          type: string
+          description: 差戻し理由（必須）
+
+    # 領収書
+    Receipt:
+      type: object
+      properties:
+        id:
+          type: integer
+        expenseApplicationId:
+          type: integer
+        fileName:
+          type: string
+        fileUrl:
+          type: string
+          format: uri
+          description: 領収書画像URL
+        fileSize:
+          type: integer
+          description: ファイルサイズ（バイト）
+        mimeType:
+          type: string
+        ocrResult:
+          $ref: '#/components/schemas/OCRResult'
+        createdAt:
+          type: string
+          format: date-time
+
+    OCRResult:
+      type: object
+      properties:
+        extractedDate:
+          type: string
+          format: date
+          nullable: true
+          description: 抽出された日付
+        extractedAmount:
+          type: number
+          format: float
+          nullable: true
+          description: 抽出された金額
+        extractedStoreName:
+          type: string
+          nullable: true
+          description: 抽出された店舗名
+        extractedText:
+          type: string
+          nullable: true
+          description: 抽出された全文
+        confidence:
+          type: number
+          format: float
+          description: 信頼度スコア（0-1）
+        status:
+          type: string
+          enum: [pending, completed, failed]
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    OCRResultUpdate:
+      type: object
+      properties:
+        extractedDate:
+          type: string
+          format: date
+        extractedAmount:
+          type: number
+          format: float
+        extractedStoreName:
+          type: string
+
+    # 社内カテゴリ
+    InternalCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    # コメント
+    ApplicationComment:
+      type: object
+      properties:
+        id:
+          type: integer
+        expenseApplicationId:
+          type: integer
+        memberId:
+          type: integer
+        member:
+          $ref: '#/components/schemas/Member'
+        comment:
+          type: string
+        commentType:
+          type: string
+          enum: [approval, rejection, return, general]
+        createdAt:
+          type: string
+          format: date-time
+
+    # 振込
+    PaymentTarget:
+      type: object
+      properties:
+        expenseApplicationId:
+          type: integer
+        memberId:
+          type: integer
+        member:
+          $ref: '#/components/schemas/Member'
+        amount:
+          type: number
+          format: float
+          description: 振込金額
+        expenseDate:
+          type: string
+          format: date
+        isCashPayment:
+          type: boolean
+
+    PaymentTargetList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentTarget'
+        total:
+          type: integer
+        totalAmount:
+          type: number
+          format: float
+
+    PaymentGenerateRequest:
+      type: object
+      required:
+        - expenseApplicationIds
+      properties:
+        expenseApplicationIds:
+          type: array
+          items:
+            type: integer
+          description: 振込対象の申請IDリスト
+
+    PaymentData:
+      type: object
+      properties:
+        format:
+          type: string
+          enum: [csv, txt]
+          description: データフォーマット
+        data:
+          type: string
+          description: 振込データ（CSVまたはテキスト形式）
+        fileName:
+          type: string
+          description: 推奨ファイル名
+        totalAmount:
+          type: number
+          format: float
+        totalCount:
+          type: integer
+
+    # エラー
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              example: "バリデーションエラーが発生しました"
+            details:
+              type: object
+              additionalProperties: true

@@ -1,0 +1,534 @@
+import { Response } from 'express';
+import { AuthRequest } from '../middleware/auth.middleware';
+import prisma from '../config/database';
+import { subsidyCalculationService } from '../services/subsidy-calculation.service';
+
+export const adminController = {
+  getApplications: async (req: AuthRequest, res: Response) => {
+    try {
+      const {
+        status,
+        memberId,
+        departmentId,
+        startDate,
+        endDate,
+        page = 1,
+        limit = 20,
+      } = req.query;
+
+      const where: any = {};
+
+      if (status) {
+        where.status = status;
+      }
+
+      if (memberId) {
+        where.memberId = Number(memberId);
+      }
+
+      if (departmentId) {
+        where.member = { departmentId: Number(departmentId) };
+      }
+
+      if (startDate || endDate) {
+        where.expenseDate = {};
+        if (startDate) {
+          where.expenseDate.gte = new Date(startDate as string);
+        }
+        if (endDate) {
+          where.expenseDate.lte = new Date(endDate as string);
+        }
+      }
+
+      const [items, total] = await Promise.all([
+        prisma.expenseApplication.findMany({
+          where,
+          include: {
+            member: {
+              include: { department: true },
+            },
+            internalCategory: true,
+            receipts: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: (Number(page) - 1) * Number(limit),
+          take: Number(limit),
+        }),
+        prisma.expenseApplication.count({ where }),
+      ]);
+
+      res.json({
+        items: items.map((item) => ({
+          ...item,
+          expenseDate: item.expenseDate.toISOString().split('T')[0],
+          createdAt: item.createdAt.toISOString(),
+          updatedAt: item.updatedAt.toISOString(),
+          submittedAt: item.submittedAt?.toISOString(),
+          approvedAt: item.approvedAt?.toISOString(),
+          rejectedAt: item.rejectedAt?.toISOString(),
+        })),
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
+      });
+    } catch (error: any) {
+      console.error('Get applications error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '申請一覧の取得に失敗しました',
+        },
+      });
+    }
+  },
+
+  getApplicationById: async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const application = await prisma.expenseApplication.findUnique({
+        where: { id: Number(id) },
+        include: {
+          member: {
+            include: { department: true },
+          },
+          internalCategory: true,
+          receipts: {
+            include: { ocrResult: true },
+          },
+          comments: {
+            include: { member: true },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      });
+
+      if (!application) {
+        return res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: '申請が見つかりません',
+          },
+        });
+      }
+
+      res.json({
+        ...application,
+        expenseDate: application.expenseDate.toISOString().split('T')[0],
+        createdAt: application.createdAt.toISOString(),
+        updatedAt: application.updatedAt.toISOString(),
+        submittedAt: application.submittedAt?.toISOString(),
+        approvedAt: application.approvedAt?.toISOString(),
+        rejectedAt: application.rejectedAt?.toISOString(),
+        canApprove: application.status === 'submitted',
+        canReject: application.status === 'submitted',
+      });
+    } catch (error: any) {
+      console.error('Get application by id error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '申請の取得に失敗しました',
+        },
+      });
+    }
+  },
+
+  approve: async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { internalCategoryId, finalAmount, comment } = req.body;
+
+      if (!internalCategoryId || finalAmount === undefined) {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: '社内カテゴリと確定金額は必須です',
+          },
+        });
+      }
+
+      const application = await prisma.expenseApplication.findUnique({
+        where: { id: Number(id) },
+      });
+
+      if (!application) {
+        return res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: '申請が見つかりません',
+          },
+        });
+      }
+
+      if (application.status !== 'submitted') {
+        return res.status(400).json({
+          error: {
+            code: 'BAD_REQUEST',
+            message: '承認可能な状態ではありません',
+          },
+        });
+      }
+
+      // 補助金額を再算出（提案額として）
+      const calculationResult = await subsidyCalculationService.recalculateOnApproval(
+        Number(id),
+        Number(internalCategoryId)
+      );
+
+      // トランザクションで承認とコメントを同時に作成
+      const result = await prisma.$transaction(async (tx) => {
+        const updated = await tx.expenseApplication.update({
+          where: { id: Number(id) },
+          data: {
+            status: 'approved',
+            internalCategoryId: Number(internalCategoryId),
+            proposedAmount: calculationResult,
+            finalAmount: Number(finalAmount),
+            approvedAt: new Date(),
+          },
+          include: {
+            member: {
+              include: { department: true },
+            },
+            internalCategory: true,
+          },
+        });
+
+        // コメントがある場合は作成
+        if (comment) {
+          await tx.applicationComment.create({
+            data: {
+              expenseApplicationId: Number(id),
+              memberId: req.user!.id,
+              comment,
+              commentType: 'approval',
+            },
+          });
+        }
+
+        return updated;
+      });
+
+      res.json({
+        ...result,
+        expenseDate: result.expenseDate.toISOString().split('T')[0],
+        createdAt: result.createdAt.toISOString(),
+        updatedAt: result.updatedAt.toISOString(),
+        approvedAt: result.approvedAt?.toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Approve error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '承認に失敗しました',
+        },
+      });
+    }
+  },
+
+  reject: async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { comment } = req.body;
+
+      if (!comment) {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: '差戻し理由は必須です',
+          },
+        });
+      }
+
+      const application = await prisma.expenseApplication.findUnique({
+        where: { id: Number(id) },
+      });
+
+      if (!application) {
+        return res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: '申請が見つかりません',
+          },
+        });
+      }
+
+      if (application.status !== 'submitted') {
+        return res.status(400).json({
+          error: {
+            code: 'BAD_REQUEST',
+            message: '差戻し可能な状態ではありません',
+          },
+        });
+      }
+
+      // トランザクションで差戻しとコメントを同時に作成
+      const result = await prisma.$transaction(async (tx) => {
+        const updated = await tx.expenseApplication.update({
+          where: { id: Number(id) },
+          data: {
+            status: 'returned',
+          },
+          include: {
+            member: {
+              include: { department: true },
+            },
+            internalCategory: true,
+          },
+        });
+
+        await tx.applicationComment.create({
+          data: {
+            expenseApplicationId: Number(id),
+            memberId: req.user!.id,
+            comment,
+            commentType: 'return',
+          },
+        });
+
+        return updated;
+      });
+
+      res.json({
+        ...result,
+        expenseDate: result.expenseDate.toISOString().split('T')[0],
+        createdAt: result.createdAt.toISOString(),
+        updatedAt: result.updatedAt.toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Reject error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '差戻しに失敗しました',
+        },
+      });
+    }
+  },
+
+  cancel: async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { comment } = req.body;
+
+      if (!comment) {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: '却下理由は必須です',
+          },
+        });
+      }
+
+      const application = await prisma.expenseApplication.findUnique({
+        where: { id: Number(id) },
+      });
+
+      if (!application) {
+        return res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: '申請が見つかりません',
+          },
+        });
+      }
+
+      // トランザクションで却下とコメントを同時に作成
+      const result = await prisma.$transaction(async (tx) => {
+        const updated = await tx.expenseApplication.update({
+          where: { id: Number(id) },
+          data: {
+            status: 'rejected',
+            rejectedAt: new Date(),
+          },
+          include: {
+            member: {
+              include: { department: true },
+            },
+            internalCategory: true,
+          },
+        });
+
+        await tx.applicationComment.create({
+          data: {
+            expenseApplicationId: Number(id),
+            memberId: req.user!.id,
+            comment,
+            commentType: 'rejection',
+          },
+        });
+
+        return updated;
+      });
+
+      res.json({
+        ...result,
+        expenseDate: result.expenseDate.toISOString().split('T')[0],
+        createdAt: result.createdAt.toISOString(),
+        updatedAt: result.updatedAt.toISOString(),
+        rejectedAt: result.rejectedAt?.toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Cancel error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '却下に失敗しました',
+        },
+      });
+    }
+  },
+
+  getPaymentTargets: async (req: AuthRequest, res: Response) => {
+    try {
+      const { startDate, endDate, includePaid = false } = req.query;
+
+      const where: any = {
+        status: 'approved',
+        finalAmount: { not: null },
+      };
+
+      if (startDate || endDate) {
+        where.approvedAt = {};
+        if (startDate) {
+          where.approvedAt.gte = new Date(startDate as string);
+        }
+        if (endDate) {
+          where.approvedAt.lte = new Date(endDate as string);
+        }
+      }
+
+      if (!includePaid) {
+        where.payment = null;
+      }
+
+      const applications = await prisma.expenseApplication.findMany({
+        where,
+        include: {
+          member: {
+            include: { department: true },
+          },
+          payment: true,
+        },
+        orderBy: { approvedAt: 'desc' },
+      });
+
+      const totalAmount = applications.reduce(
+        (sum, app) => sum + (app.finalAmount?.toNumber() || 0),
+        0
+      );
+
+      res.json({
+        items: applications.map((app) => ({
+          expenseApplicationId: app.id,
+          memberId: app.memberId,
+          member: app.member,
+          amount: app.finalAmount?.toNumber() || 0,
+          expenseDate: app.expenseDate.toISOString().split('T')[0],
+          isCashPayment: app.isCashPayment,
+        })),
+        total: applications.length,
+        totalAmount,
+      });
+    } catch (error: any) {
+      console.error('Get payment targets error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '振込対象の取得に失敗しました',
+        },
+      });
+    }
+  },
+
+  generatePaymentData: async (req: AuthRequest, res: Response) => {
+    try {
+      const { expenseApplicationIds } = req.body;
+
+      if (!expenseApplicationIds || !Array.isArray(expenseApplicationIds) || expenseApplicationIds.length === 0) {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: '申請IDリストが必要です',
+          },
+        });
+      }
+
+      const applications = await prisma.expenseApplication.findMany({
+        where: {
+          id: { in: expenseApplicationIds.map(Number) },
+          status: 'approved',
+          finalAmount: { not: null },
+        },
+        include: {
+          member: true,
+        },
+      });
+
+      if (applications.length === 0) {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: '振込対象の申請が見つかりません',
+          },
+        });
+      }
+
+      // CSV形式で振込データを生成
+      const csvLines = applications.map((app) => {
+        const amount = app.finalAmount?.toNumber() || 0;
+        // 銀行フォーマット（簡易版）
+        return `${app.member.name},${amount},${app.expenseDate.toISOString().split('T')[0]}`;
+      });
+
+      const csvData = ['申請者名,金額,経費発生日', ...csvLines].join('\n');
+
+      const totalAmount = applications.reduce(
+        (sum, app) => sum + (app.finalAmount?.toNumber() || 0),
+        0
+      );
+
+      // 振込情報を保存
+      await prisma.$transaction(
+        applications.map((app) =>
+          prisma.payment.upsert({
+            where: { expenseApplicationId: app.id },
+            create: {
+              expenseApplicationId: app.id,
+              paymentStatus: 'pending',
+              bankData: {
+                amount: app.finalAmount?.toNumber(),
+                memberName: app.member.name,
+              },
+            },
+            update: {
+              bankData: {
+                amount: app.finalAmount?.toNumber(),
+                memberName: app.member.name,
+              },
+            },
+          })
+        )
+      );
+
+      res.json({
+        format: 'csv',
+        data: csvData,
+        fileName: `payment-${new Date().toISOString().split('T')[0]}.csv`,
+        totalAmount,
+        totalCount: applications.length,
+      });
+    } catch (error: any) {
+      console.error('Generate payment data error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '振込データの生成に失敗しました',
+        },
+      });
+    }
+  },
+};

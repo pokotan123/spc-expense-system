@@ -1,0 +1,42 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, master]
+
+jobs:
+  # バックエンドのデプロイはRailwayの自動デプロイを使用
+  # フロントエンドのデプロイはVercelの自動デプロイを使用
+  
+  # 必要に応じて追加のCI/CDタスクをここに記述
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/*/package-lock.json
+      
+      - name: Install dependencies (Frontend)
+        run: |
+          cd apps/frontend
+          npm ci
+      
+      - name: Install dependencies (Backend)
+        run: |
+          cd apps/backend
+          npm ci
+      
+      - name: Lint Frontend
+        run: |
+          cd apps/frontend
+          npm run lint
+      
+      - name: Lint Backend
+        run: |
+          cd apps/backend
+          npm run lint

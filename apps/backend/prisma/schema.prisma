@@ -1,0 +1,158 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Member {
+  id           Int       @id @default(autoincrement())
+  memberId     String    @unique @map("member_id") // SPC会員DB連携ID
+  name         String
+  email        String    @unique
+  departmentId Int       @map("department_id")
+  department   Department @relation(fields: [departmentId], references: [id])
+  role         String    @default("member") // member, admin, manager
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  expenseApplications ExpenseApplication[]
+  comments            ApplicationComment[]
+
+  @@map("members")
+}
+
+model Department {
+  id        Int       @id @default(autoincrement())
+  name      String
+  code      String    @unique
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  members Member[]
+
+  @@map("departments")
+}
+
+model ExpenseApplication {
+  id                 Int       @id @default(autoincrement())
+  memberId           Int       @map("member_id")
+  member             Member    @relation(fields: [memberId], references: [id])
+  status             String    @default("draft") // draft, submitted, returned, approved, rejected
+  expenseDate        DateTime  @db.Date @map("expense_date")
+  amount             Decimal   @db.Decimal(10, 2)
+  proposedAmount     Decimal?  @db.Decimal(10, 2) @map("proposed_amount")
+  finalAmount        Decimal?  @db.Decimal(10, 2) @map("final_amount")
+  description        String    @db.Text
+  internalCategoryId Int?      @map("internal_category_id")
+  internalCategory   InternalCategory? @relation(fields: [internalCategoryId], references: [id])
+  isCashPayment      Boolean   @default(false) @map("is_cash_payment")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  submittedAt        DateTime? @map("submitted_at")
+  approvedAt         DateTime? @map("approved_at")
+  rejectedAt         DateTime? @map("rejected_at")
+
+  receipts Receipt[]
+  comments ApplicationComment[]
+  payment  Payment?
+
+  @@index([memberId])
+  @@index([status])
+  @@index([expenseDate])
+  @@index([internalCategoryId])
+  @@index([submittedAt])
+  @@index([approvedAt])
+  @@index([status, expenseDate])
+  @@map("expense_applications")
+}
+
+model Receipt {
+  id                 Int       @id @default(autoincrement())
+  expenseApplicationId Int     @map("expense_application_id")
+  expenseApplication   ExpenseApplication @relation(fields: [expenseApplicationId], references: [id], onDelete: Cascade)
+  fileName           String    @map("file_name")
+  filePath           String    @map("file_path")
+  fileUrl            String    @map("file_url")
+  fileSize           BigInt    @map("file_size")
+  mimeType           String    @map("mime_type")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  ocrResult OCRResult?
+
+  @@index([expenseApplicationId])
+  @@map("receipts")
+}
+
+model OCRResult {
+  id                  Int       @id @default(autoincrement())
+  receiptId           Int       @unique @map("receipt_id")
+  receipt             Receipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  extractedDate       DateTime? @db.Date @map("extracted_date")
+  extractedAmount     Decimal?  @db.Decimal(10, 2) @map("extracted_amount")
+  extractedStoreName  String?   @map("extracted_store_name")
+  extractedText       String?   @db.Text @map("extracted_text")
+  confidence          Decimal?  @db.Decimal(3, 2)
+  status              String    @default("pending") // pending, completed, failed
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  completedAt         DateTime? @map("completed_at")
+
+  @@index([status])
+  @@map("ocr_results")
+}
+
+model InternalCategory {
+  id          Int       @id @default(autoincrement())
+  name        String
+  code        String    @unique
+  description String?   @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  expenseApplications ExpenseApplication[]
+
+  @@index([isActive])
+  @@map("internal_categories")
+}
+
+model ApplicationComment {
+  id                 Int       @id @default(autoincrement())
+  expenseApplicationId Int     @map("expense_application_id")
+  expenseApplication   ExpenseApplication @relation(fields: [expenseApplicationId], references: [id], onDelete: Cascade)
+  memberId           Int       @map("member_id")
+  member             Member    @relation(fields: [memberId], references: [id])
+  comment            String    @db.Text
+  commentType        String    @map("comment_type") // approval, rejection, return, general
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  @@index([expenseApplicationId])
+  @@index([memberId])
+  @@index([createdAt])
+  @@map("application_comments")
+}
+
+model Payment {
+  id                 Int       @id @default(autoincrement())
+  expenseApplicationId Int     @unique @map("expense_application_id")
+  expenseApplication   ExpenseApplication @relation(fields: [expenseApplicationId], references: [id])
+  paymentStatus       String    @default("pending") @map("payment_status") // pending, completed, failed
+  paymentDate         DateTime? @db.Date @map("payment_date")
+  bankData            Json?     @map("bank_data")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  paidAt              DateTime? @map("paid_at")
+
+  @@index([paymentStatus])
+  @@index([paymentDate])
+  @@map("payments")
+}

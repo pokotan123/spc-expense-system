@@ -1,0 +1,10 @@
+* text=auto
+*.md text
+*.yaml text
+*.yml text
+*.json text
+*.js text
+*.ts text
+*.tsx text
+*.jsx text
+*.prisma text
