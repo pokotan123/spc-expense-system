@@ -2,9 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# 依存関係をインストール
+# 依存関係をインストール（devDependenciesも含む）
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 # Prismaクライアントを生成
 COPY prisma ./prisma
@@ -13,9 +13,12 @@ RUN npx prisma generate
 # アプリケーションコードをコピー
 COPY . .
 
-# ビルド
+# TypeScriptをビルド
 RUN npm run build
 
-EXPOSE 3000
+# 本番用の依存関係のみに整理（オプション）
+RUN npm prune --production
+
+EXPOSE 3001
 
 CMD ["npm", "start"]
