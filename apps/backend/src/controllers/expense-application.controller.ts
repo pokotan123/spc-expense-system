@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../config/database';
 import { subsidyCalculationService } from '../services/subsidy-calculation.service';
+import { mockStorageService } from '../services/mock-storage.service';
 
 export const expenseApplicationController = {
   getList: async (req: AuthRequest, res: Response) => {
@@ -21,28 +22,72 @@ export const expenseApplicationController = {
         where.status = status;
       }
 
-      const [items, total] = await Promise.all([
-        prisma.expenseApplication.findMany({
-          where,
-          include: {
-            member: {
-              include: { department: true },
+      let items: any[];
+      let total: number;
+
+      try {
+        const [dbItems, dbTotal] = await Promise.all([
+          prisma.expenseApplication.findMany({
+            where,
+            include: {
+              member: {
+                include: { department: true },
+              },
+              internalCategory: true,
+              receipts: {
+                include: { ocrResult: true },
+              },
+              comments: {
+                include: { member: true },
+                orderBy: { createdAt: 'desc' },
+              },
             },
-            internalCategory: true,
-            receipts: {
-              include: { ocrResult: true },
+            orderBy: { createdAt: 'desc' },
+            skip: (Number(page) - 1) * Number(limit),
+            take: Number(limit),
+          }),
+          prisma.expenseApplication.count({ where }),
+        ]);
+        items = dbItems;
+        total = dbTotal;
+      } catch (dbError: any) {
+        // データベース接続エラーの場合、モックストレージから取得
+        console.warn('Database connection error, using mock storage:', dbError.message);
+        const mockApps = req.user!.role === 'member'
+          ? mockStorageService.getApplicationsByMemberId(memberId, status as string)
+          : mockStorageService.getAllApplications(status as string);
+        
+        total = mockApps.length;
+        const startIndex = (Number(page) - 1) * Number(limit);
+        const endIndex = startIndex + Number(limit);
+        const paginatedApps = mockApps.slice(startIndex, endIndex);
+
+        items = paginatedApps.map((app) => ({
+          ...app,
+          member: {
+            id: app.memberId,
+            memberId: req.user!.memberId,
+            name: 'テスト会員',
+            email: 'test@example.com',
+            departmentId: 1,
+            department: {
+              id: 1,
+              name: '総務部',
+              code: 'DEPT001',
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
             },
-            comments: {
-              include: { member: true },
-              orderBy: { createdAt: 'desc' },
-            },
+            role: req.user!.role,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastLoginAt: null,
           },
-          orderBy: { createdAt: 'desc' },
-          skip: (Number(page) - 1) * Number(limit),
-          take: Number(limit),
-        }),
-        prisma.expenseApplication.count({ where }),
-      ]);
+          receipts: app.receipts || [],
+          comments: app.comments || [],
+          internalCategory: null,
+        }));
+      }
 
       res.json({
         items: items.map((item) => ({
@@ -73,22 +118,57 @@ export const expenseApplicationController = {
   getById: async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const application = await prisma.expenseApplication.findUnique({
-        where: { id: Number(id) },
-        include: {
-          member: {
-            include: { department: true },
+      let application;
+
+      try {
+        application = await prisma.expenseApplication.findUnique({
+          where: { id: Number(id) },
+          include: {
+            member: {
+              include: { department: true },
+            },
+            internalCategory: true,
+            receipts: {
+              include: { ocrResult: true },
+            },
+            comments: {
+              include: { member: true },
+              orderBy: { createdAt: 'desc' },
+            },
           },
-          internalCategory: true,
-          receipts: {
-            include: { ocrResult: true },
-          },
-          comments: {
-            include: { member: true },
-            orderBy: { createdAt: 'desc' },
-          },
-        },
-      });
+        });
+      } catch (dbError: any) {
+        // データベース接続エラーの場合、モックストレージから取得
+        console.warn('Database connection error, using mock storage:', dbError.message);
+        const mockApp = mockStorageService.getApplicationById(Number(id));
+        if (mockApp) {
+          application = {
+            ...mockApp,
+            member: {
+              id: mockApp.memberId,
+              memberId: req.user!.memberId,
+              name: 'テスト会員',
+              email: 'test@example.com',
+              departmentId: 1,
+              department: {
+                id: 1,
+                name: '総務部',
+                code: 'DEPT001',
+                isActive: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+              role: req.user!.role,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              lastLoginAt: null,
+            },
+            receipts: mockApp.receipts || [],
+            comments: mockApp.comments || [],
+            internalCategory: null,
+          };
+        }
+      }
 
       if (!application) {
         return res.status(404).json({
@@ -203,6 +283,9 @@ export const expenseApplicationController = {
           comments: [],
         };
 
+        // モックストレージに保存
+        mockStorageService.saveApplication(mockApplication);
+
         return res.status(201).json({
           ...mockApplication,
           expenseDate: mockApplication.expenseDate.toISOString().split('T')[0],
@@ -232,10 +315,17 @@ export const expenseApplicationController = {
     try {
       const { id } = req.params;
       const { expenseDate, amount, description } = req.body;
+      let application: any;
 
-      const application = await prisma.expenseApplication.findUnique({
-        where: { id: Number(id) },
-      });
+      try {
+        application = await prisma.expenseApplication.findUnique({
+          where: { id: Number(id) },
+        });
+      } catch (dbError: any) {
+        // データベース接続エラーの場合、モックストレージから取得
+        console.warn('Database connection error, using mock storage:', dbError.message);
+        application = mockStorageService.getApplicationById(Number(id));
+      }
 
       if (!application || application.memberId !== req.user!.id) {
         return res.status(404).json({
@@ -255,20 +345,65 @@ export const expenseApplicationController = {
         });
       }
 
-      const updated = await prisma.expenseApplication.update({
-        where: { id: Number(id) },
-        data: {
+      let updated: any;
+
+      try {
+        updated = await prisma.expenseApplication.update({
+          where: { id: Number(id) },
+          data: {
+            ...(expenseDate && { expenseDate: new Date(expenseDate) }),
+            ...(amount !== undefined && { amount: Number(amount) }),
+            ...(description && { description }),
+          },
+          include: {
+            member: {
+              include: { department: true },
+            },
+            internalCategory: true,
+          },
+        });
+      } catch (dbError: any) {
+        // データベース接続エラーの場合、モックストレージを更新
+        console.warn('Database connection error, using mock storage:', dbError.message);
+        const mockApp = mockStorageService.updateApplication(Number(id), {
           ...(expenseDate && { expenseDate: new Date(expenseDate) }),
           ...(amount !== undefined && { amount: Number(amount) }),
           ...(description && { description }),
-        },
-        include: {
+        });
+
+        if (!mockApp) {
+          return res.status(404).json({
+            error: {
+              code: 'NOT_FOUND',
+              message: '申請が見つかりません',
+            },
+          });
+        }
+
+        updated = {
+          ...mockApp,
           member: {
-            include: { department: true },
+            id: mockApp.memberId,
+            memberId: req.user!.memberId,
+            name: 'テスト会員',
+            email: 'test@example.com',
+            departmentId: 1,
+            department: {
+              id: 1,
+              name: '総務部',
+              code: 'DEPT001',
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+            role: req.user!.role,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastLoginAt: null,
           },
-          internalCategory: true,
-        },
-      });
+          internalCategory: null,
+        };
+      }
 
       res.json({
         ...updated,
@@ -332,11 +467,28 @@ export const expenseApplicationController = {
   submit: async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
+      let application: any;
 
-      const application = await prisma.expenseApplication.findUnique({
-        where: { id: Number(id) },
-        include: { receipts: true },
-      });
+      try {
+        application = await prisma.expenseApplication.findUnique({
+          where: { id: Number(id) },
+          include: { receipts: true },
+        });
+      } catch (dbError: any) {
+        // データベース接続エラーの場合、モックストレージから取得
+        console.warn('Database connection error, using mock storage:', dbError.message);
+      }
+
+      // データベースから取得できなかった場合、モックストレージから取得
+      if (!application) {
+        const mockApp = mockStorageService.getApplicationById(Number(id));
+        if (mockApp) {
+          application = {
+            ...mockApp,
+            receipts: mockApp.receipts || [],
+          };
+        }
+      }
 
       if (!application || application.memberId !== req.user!.id) {
         return res.status(404).json({
@@ -356,19 +508,67 @@ export const expenseApplicationController = {
         });
       }
 
-      const updated = await prisma.expenseApplication.update({
-        where: { id: Number(id) },
-        data: {
+      let updated: any;
+
+      try {
+        updated = await prisma.expenseApplication.update({
+          where: { id: Number(id) },
+          data: {
+            status: 'submitted',
+            submittedAt: new Date(),
+          },
+          include: {
+            member: {
+              include: { department: true },
+            },
+            internalCategory: true,
+          },
+        });
+      } catch (dbError: any) {
+        // データベース接続エラーの場合、モックストレージを更新
+        console.warn('Database connection error, using mock storage:', dbError.message);
+      }
+
+      // データベースから更新できなかった場合、モックストレージを更新
+      if (!updated) {
+        const mockApp = mockStorageService.updateApplication(Number(id), {
           status: 'submitted',
           submittedAt: new Date(),
-        },
-        include: {
+        });
+
+        if (!mockApp) {
+          return res.status(404).json({
+            error: {
+              code: 'NOT_FOUND',
+              message: '申請が見つかりません',
+            },
+          });
+        }
+
+        updated = {
+          ...mockApp,
           member: {
-            include: { department: true },
+            id: mockApp.memberId,
+            memberId: req.user!.memberId,
+            name: 'テスト会員',
+            email: 'test@example.com',
+            departmentId: 1,
+            department: {
+              id: 1,
+              name: '総務部',
+              code: 'DEPT001',
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+            role: req.user!.role,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastLoginAt: null,
           },
-          internalCategory: true,
-        },
-      });
+          internalCategory: null,
+        };
+      }
 
       res.json({
         ...updated,
