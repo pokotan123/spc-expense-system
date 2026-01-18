@@ -71,12 +71,12 @@ export const authController = {
 
       // パスワード検証
       let isPasswordValid = false;
-      if ('passwordHash' in member && member.passwordHash) {
-        // モックデータの場合
-        isPasswordValid = await bcrypt.compare(password, member.passwordHash as string);
+      
+      // モックデータの場合（passwordHashプロパティがある場合）
+      if ('passwordHash' in member && (member as any).passwordHash) {
+        isPasswordValid = await bcrypt.compare(password, (member as any).passwordHash);
       } else {
-        // データベースから取得した場合（現在はパスワード検証なし、SPC会員DB APIで検証予定）
-        // TODO: SPC会員DB APIで認証
+        // データベースから取得した場合、またはモックデータでpasswordHashがない場合
         // 暫定的に、固定パスワードで検証
         const defaultPassword = 'password123';
         isPasswordValid = password === defaultPassword;
