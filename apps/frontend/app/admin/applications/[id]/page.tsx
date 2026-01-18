@@ -146,6 +146,11 @@ export default function AdminApplicationDetailPage() {
     );
   }
 
+  // TypeScriptの型チェック用：applicationがnullでないことを確認
+  if (!application) {
+    return null;
+  }
+
   return (
     <MainLayout requireRole="admin">
       <div className="max-w-4xl mx-auto space-y-6">
