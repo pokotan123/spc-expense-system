@@ -12,7 +12,7 @@ import { ExpenseApplication, InternalCategory } from '@/types';
 import { format } from 'date-fns';
 
 const approvalSchema = z.object({
-  internalCategoryId: z.number().min(1, '社内カテゴリを選択してください'),
+  internalCategoryId: z.number().min(1, '仕分けカテゴリを選択してください'),
   finalAmount: z.number().min(0, '確定金額を入力してください'),
   comment: z.string().optional(),
 });
@@ -237,7 +237,7 @@ export default function AdminApplicationDetailPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      社内カテゴリ <span className="text-red-500">*</span>
+                      仕分けカテゴリ <span className="text-red-500">*</span>
                     </label>
                     <select
                       {...approvalForm.register('internalCategoryId', { valueAsNumber: true })}
