@@ -31,8 +31,8 @@ function AdminApplicationsContent() {
   const [totalPages, setTotalPages] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const statusParam = searchParams.get('status');
-  // デフォルトで「申請中」の申請を表示（URLパラメータがない場合）
-  const status = statusParam !== null ? statusParam : 'submitted';
+  // 「すべて」を選択した場合（statusパラメータがない場合）はundefinedにしてすべてのステータスを表示
+  const status = statusParam || undefined;
 
   useEffect(() => {
     const fetchApplications = async () => {
@@ -76,7 +76,7 @@ function AdminApplicationsContent() {
           <Link
             href="/admin/applications"
             className={`px-4 py-2 rounded-md ${
-              statusParam === null ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
+              !statusParam ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
             すべて
@@ -86,7 +86,7 @@ function AdminApplicationsContent() {
               key={key}
               href={`/admin/applications?status=${key}`}
               className={`px-4 py-2 rounded-md ${
-                status === key ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
+                status === key ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
               {label}
