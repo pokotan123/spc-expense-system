@@ -2,6 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# OpenSSLとその他の必要なライブラリをインストール
+RUN apk add --no-cache openssl1.1-compat libc6-compat
+
 # 依存関係をインストール（devDependenciesも含む）
 COPY package*.json ./
 RUN npm ci
