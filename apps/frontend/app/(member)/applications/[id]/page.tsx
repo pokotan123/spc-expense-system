@@ -1,0 +1,237 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import MainLayout from '@/components/layouts/MainLayout';
+import { expenseApplicationApi, receiptApi } from '@/lib/api';
+import { ExpenseApplication, Receipt, OCRResult } from '@/types';
+import { format } from 'date-fns';
+import Link from 'next/link';
+import ReceiptUpload from '@/components/forms/ReceiptUpload';
+import ReceiptList from '@/components/forms/ReceiptList';
+
+const statusLabels: Record<string, string> = {
+  draft: '下書き',
+  submitted: '申請中',
+  returned: '差戻し',
+  approved: '承認済',
+  rejected: '却下',
+};
+
+const statusColors: Record<string, string> = {
+  draft: 'bg-gray-100 text-gray-800',
+  submitted: 'bg-yellow-100 text-yellow-800',
+  returned: 'bg-red-100 text-red-800',
+  approved: 'bg-green-100 text-green-800',
+  rejected: 'bg-gray-100 text-gray-800',
+};
+
+export default function ApplicationDetailPage() {
+  const router = useRouter();
+  const params = useParams();
+  const id = parseInt(params.id as string);
+  const [application, setApplication] = useState<ExpenseApplication | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+
+  useEffect(() => {
+    const fetchApplication = async () => {
+      try {
+        const data = await expenseApplicationApi.getById(id);
+        setApplication(data);
+        setReceipts(data.receipts || []);
+      } catch (error) {
+        console.error('Failed to fetch application:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchApplication();
+  }, [id]);
+
+  const handleReceiptUpload = async (receipt: Receipt) => {
+    setReceipts((prev) => [...prev, receipt]);
+    // 申請データを再取得して最新の状態を反映
+    try {
+      const data = await expenseApplicationApi.getById(id);
+      setApplication(data);
+      setReceipts(data.receipts || []);
+    } catch (error) {
+      console.error('Failed to refresh application:', error);
+    }
+  };
+
+  const handleReceiptDelete = (receiptId: number) => {
+    setReceipts((prev) => prev.filter((r) => r.id !== receiptId));
+    // 申請データを再取得
+    expenseApplicationApi.getById(id).then((data) => {
+      setApplication(data);
+      setReceipts(data.receipts || []);
+    });
+  };
+
+  const handleOCRComplete = (receiptId: number, ocrResult: OCRResult) => {
+    // OCR結果を反映
+    setReceipts((prev) =>
+      prev.map((r) => (r.id === receiptId ? { ...r, ocrResult } : r))
+    );
+  };
+
+  const handleSubmit = async () => {
+    if (!application || (application.status !== 'draft' && application.status !== 'returned')) return;
+
+    setIsSubmitting(true);
+    try {
+      await expenseApplicationApi.submit(application.id);
+      router.push('/applications');
+    } catch (error) {
+      console.error('Failed to submit application:', error);
+      alert('申請の送信に失敗しました');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex justify-center items-center h-64">
+          <div className="text-gray-500">読み込み中...</div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!application) {
+    return (
+      <MainLayout>
+        <div className="text-center">
+          <p className="text-gray-500">申請が見つかりません</p>
+          <Link href="/applications" className="text-blue-600 hover:underline">
+            申請一覧に戻る
+          </Link>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  return (
+    <MainLayout>
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">申請詳細 #{application.id}</h1>
+            <p className="text-gray-600">申請内容と領収書を確認・管理できます</p>
+          </div>
+          <Link
+            href="/applications"
+            className="btn-secondary"
+          >
+            一覧に戻る
+          </Link>
+        </div>
+
+        <div className="card space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-gradient-to-br from-gray-50 to-blue-50 p-4 rounded-lg border border-gray-200">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">ステータス</label>
+              <span className={`inline-block px-4 py-2 text-sm font-semibold rounded-full ${statusColors[application.status]} shadow-sm`}>
+                {statusLabels[application.status]}
+              </span>
+            </div>
+            <div className="bg-gradient-to-br from-gray-50 to-blue-50 p-4 rounded-lg border border-gray-200">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">経費発生日</label>
+              <p className="text-lg font-bold text-gray-900">
+                {format(new Date(application.expenseDate), 'yyyy年MM月dd日')}
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-gray-50 to-blue-50 p-4 rounded-lg border border-gray-200">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">申請金額</label>
+              <p className="text-2xl font-bold text-blue-600">¥{application.amount.toLocaleString()}</p>
+            </div>
+            {application.finalAmount && (
+              <div className="bg-gradient-to-br from-gray-50 to-green-50 p-4 rounded-lg border border-green-200">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">確定金額</label>
+                <p className="text-2xl font-bold text-green-600">¥{application.finalAmount.toLocaleString()}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
+            <label className="block text-sm font-semibold text-gray-700 mb-3">申請内容</label>
+            <p className="text-gray-900 whitespace-pre-wrap leading-relaxed">{application.description}</p>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <label className="block text-sm font-semibold text-gray-700">領収書</label>
+              {(application.status === 'draft' || application.status === 'returned') && (
+                <ReceiptUpload
+                  expenseApplicationId={application.id}
+                  onUploadSuccess={handleReceiptUpload}
+                  disabled={isSubmitting}
+                />
+              )}
+            </div>
+            <ReceiptList
+              receipts={receipts}
+              expenseApplicationId={application.id}
+              onDelete={handleReceiptDelete}
+              onOCRComplete={handleOCRComplete}
+              canEdit={application.status === 'draft' || application.status === 'returned'}
+            />
+          </div>
+
+          {application.comments && application.comments.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-2">コメント</label>
+              <div className="space-y-2">
+                {application.comments.map((comment) => (
+                  <div key={comment.id} className="border rounded p-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium">{comment.member?.name}</span>
+                      <span className="text-sm text-gray-500">
+                        {format(new Date(comment.createdAt), 'yyyy/MM/dd HH:mm')}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-gray-900">{comment.comment}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(application.status === 'draft' || application.status === 'returned') && (
+            <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+              <Link
+                href={`/applications/${application.id}/edit`}
+                className="btn-secondary"
+              >
+                編集
+              </Link>
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    送信中...
+                  </span>
+                ) : (
+                  '申請を送信'
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </MainLayout>
+  );
+}
