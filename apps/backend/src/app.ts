@@ -16,8 +16,29 @@ import internalCategoryRoutes from './routes/internal-category.routes';
 const app: Express = express();
 
 // ミドルウェア
+// CORS設定: 複数のオリジンを許可
+const allowedOrigins = env.CORS_ORIGIN
+  ? env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+  : ['http://localhost:3000', 'http://localhost:3001'];
+
 app.use(cors({
-  origin: env.CORS_ORIGIN,
+  origin: (origin, callback) => {
+    // originがundefinedの場合（同一オリジンリクエストなど）は許可
+    if (!origin) {
+      return callback(null, true);
+    }
+    // 許可されたオリジンのリストに含まれているかチェック
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      // 開発環境ではすべてのオリジンを許可（デバッグ用）
+      if (env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
   credentials: true,
 }));
 
