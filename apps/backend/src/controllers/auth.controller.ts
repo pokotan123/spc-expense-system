@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { env } from '../config/env';
 import prisma from '../config/database';
 
@@ -37,6 +38,7 @@ export const authController = {
             departmentId: 1,
             department: { id: 1, name: '総務部', code: 'DEPT001', isActive: true, createdAt: new Date(), updatedAt: new Date() },
             role: 'member' as const,
+            passwordHash: '$2a$10$fTvc/pHnyFGX2LkBVM5sqeWxS0jYyj2sqgCl6SSpP5vh798MxQRQC', // password123
             createdAt: new Date(),
             updatedAt: new Date(),
             lastLoginAt: null,
@@ -49,6 +51,7 @@ export const authController = {
             departmentId: 1,
             department: { id: 1, name: '総務部', code: 'DEPT001', isActive: true, createdAt: new Date(), updatedAt: new Date() },
             role: 'admin' as const,
+            passwordHash: '$2a$10$fTvc/pHnyFGX2LkBVM5sqeWxS0jYyj2sqgCl6SSpP5vh798MxQRQC', // password123
             createdAt: new Date(),
             updatedAt: new Date(),
             lastLoginAt: null,
@@ -66,8 +69,27 @@ export const authController = {
         });
       }
 
-      // パスワード検証（現在は簡易実装、実際はSPC会員DBで検証）
-      // TODO: SPC会員DB APIで認証
+      // パスワード検証
+      let isPasswordValid = false;
+      if ('passwordHash' in member && member.passwordHash) {
+        // モックデータの場合
+        isPasswordValid = await bcrypt.compare(password, member.passwordHash as string);
+      } else {
+        // データベースから取得した場合（現在はパスワード検証なし、SPC会員DB APIで検証予定）
+        // TODO: SPC会員DB APIで認証
+        // 暫定的に、固定パスワードで検証
+        const defaultPassword = 'password123';
+        isPasswordValid = password === defaultPassword;
+      }
+
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'ユーザー名またはパスワードが正しくありません',
+          },
+        });
+      }
 
       // env.tsで型が定義されているため、必ずstring型
       const jwtSecret = env.JWT_SECRET;
