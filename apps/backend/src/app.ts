@@ -31,12 +31,9 @@ app.use(cors({
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      // 開発環境ではすべてのオリジンを許可（デバッグ用）
-      if (env.NODE_ENV === 'development') {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
+      // 暫定的にすべてのオリジンを許可（本番環境でも）
+      // TODO: 本番環境では許可されたオリジンのみに制限する
+      callback(null, true);
     }
   },
   credentials: true,
