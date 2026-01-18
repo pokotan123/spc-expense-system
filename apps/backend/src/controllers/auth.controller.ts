@@ -71,19 +71,19 @@ export const authController = {
 
       // env.tsで型が定義されているため、必ずstring型
       const jwtSecret = env.JWT_SECRET;
-      const expiresIn = env.JWT_EXPIRES_IN;
-      const refreshExpiresIn = env.JWT_REFRESH_EXPIRES_IN;
+      const expiresIn = env.JWT_EXPIRES_IN as string;
+      const refreshExpiresIn = env.JWT_REFRESH_EXPIRES_IN as string;
 
       const accessToken = jwt.sign(
         { id: member.id, memberId: member.memberId, role: member.role },
         jwtSecret,
-        { expiresIn }
+        { expiresIn: expiresIn as string | number }
       );
 
       const refreshToken = jwt.sign(
         { id: member.id, memberId: member.memberId },
         jwtSecret,
-        { expiresIn: refreshExpiresIn }
+        { expiresIn: refreshExpiresIn as string | number }
       );
 
       // 最終ログイン日時を更新（データベース接続がある場合のみ）
@@ -139,7 +139,7 @@ export const authController = {
 
       // env.tsで型が定義されているため、必ずstring型
       const jwtSecret = env.JWT_SECRET;
-      const expiresIn = env.JWT_EXPIRES_IN;
+      const expiresIn = env.JWT_EXPIRES_IN as string;
 
       const decoded = jwt.verify(refreshToken, jwtSecret) as any;
       const member = await prisma.member.findUnique({
@@ -158,7 +158,7 @@ export const authController = {
       const newAccessToken = jwt.sign(
         { id: member.id, memberId: member.memberId, role: member.role },
         jwtSecret,
-        { expiresIn }
+        { expiresIn: expiresIn as string | number }
       );
 
       res.json({
