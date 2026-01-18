@@ -70,19 +70,12 @@ export const authController = {
       }
 
       // パスワード検証
-      let isPasswordValid = false;
-      
-      // モックデータの場合（passwordHashプロパティがある場合）
-      if ('passwordHash' in member && (member as any).passwordHash) {
-        isPasswordValid = await bcrypt.compare(password, (member as any).passwordHash);
-      } else {
-        // データベースから取得した場合、またはモックデータでpasswordHashがない場合
-        // 暫定的に、固定パスワードで検証
-        const defaultPassword = 'password123';
-        isPasswordValid = password === defaultPassword;
-      }
+      // 暫定的に、固定パスワードで検証（本番環境ではSPC会員DB APIで検証）
+      const defaultPassword = 'password123';
+      const isPasswordValid = password === defaultPassword;
 
       if (!isPasswordValid) {
+        console.log('Password validation failed:', { username, password, expected: defaultPassword });
         return res.status(401).json({
           error: {
             code: 'UNAUTHORIZED',
