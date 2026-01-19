@@ -21,8 +21,13 @@ const rejectionSchema = z.object({
   comment: z.string().min(1, '差戻し理由を入力してください'),
 });
 
+const cancellationSchema = z.object({
+  comment: z.string().min(1, '却下理由を入力してください'),
+});
+
 type ApprovalForm = z.infer<typeof approvalSchema>;
 type RejectionForm = z.infer<typeof rejectionSchema>;
+type CancellationForm = z.infer<typeof cancellationSchema>;
 
 export default function AdminApplicationDetailPage() {
   const router = useRouter();
@@ -31,7 +36,7 @@ export default function AdminApplicationDetailPage() {
   const [application, setApplication] = useState<ExpenseApplication | null>(null);
   const [categories, setCategories] = useState<InternalCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [action, setAction] = useState<'approve' | 'reject' | null>(null);
+  const [action, setAction] = useState<'approve' | 'reject' | 'cancel' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +46,10 @@ export default function AdminApplicationDetailPage() {
 
   const rejectionForm = useForm<RejectionForm>({
     resolver: zodResolver(rejectionSchema),
+  });
+
+  const cancellationForm = useForm<CancellationForm>({
+    resolver: zodResolver(cancellationSchema),
   });
 
   useEffect(() => {
@@ -100,6 +109,25 @@ export default function AdminApplicationDetailPage() {
     } catch (error) {
       console.error('Failed to reject:', error);
       alert('差戻しに失敗しました');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancel = async (data: CancellationForm) => {
+    if (!application) return;
+
+    if (!confirm('この申請を却下しますか？この操作は取り消せません。')) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await adminApi.cancel(application.id, data);
+      router.push('/admin/applications');
+    } catch (error) {
+      console.error('Failed to cancel:', error);
+      alert('却下に失敗しました');
     } finally {
       setIsSubmitting(false);
     }
@@ -205,24 +233,35 @@ export default function AdminApplicationDetailPage() {
                 <h2 className="text-xl font-bold text-gray-900">承認・差戻し操作</h2>
               </div>
               {action === null && (
-                <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <button
+                      onClick={() => setAction('approve')}
+                      className="flex-1 flex items-center justify-center px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-lg font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      承認する
+                    </button>
+                    <button
+                      onClick={() => setAction('reject')}
+                      className="flex-1 flex items-center justify-center px-6 py-4 bg-gradient-to-r from-orange-600 to-amber-600 text-white text-lg font-semibold rounded-lg hover:from-orange-700 hover:to-amber-700 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      差戻しする
+                    </button>
+                  </div>
                   <button
-                    onClick={() => setAction('approve')}
-                    className="flex-1 flex items-center justify-center px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-lg font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                    onClick={() => setAction('cancel')}
+                    className="w-full flex items-center justify-center px-6 py-4 bg-gradient-to-r from-red-600 to-rose-600 text-white text-lg font-semibold rounded-lg hover:from-red-700 hover:to-rose-700 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
                   >
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                    承認する
-                  </button>
-                  <button
-                    onClick={() => setAction('reject')}
-                    className="flex-1 flex items-center justify-center px-6 py-4 bg-gradient-to-r from-red-600 to-rose-600 text-white text-lg font-semibold rounded-lg hover:from-red-700 hover:to-rose-700 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    差戻しする
+                    却下する
                   </button>
                 </div>
               )}
@@ -319,12 +358,17 @@ export default function AdminApplicationDetailPage() {
               )}
 
               {action === 'reject' && (
-                <form onSubmit={rejectionForm.handleSubmit(handleReject)} className="bg-white p-6 rounded-lg border-2 border-red-200 space-y-6">
+                <form onSubmit={rejectionForm.handleSubmit(handleReject)} className="bg-white p-6 rounded-lg border-2 border-orange-200 space-y-6">
                   <div className="flex items-center space-x-2 mb-4">
-                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <h3 className="text-lg font-bold text-gray-900">差戻し理由を入力</h3>
+                  </div>
+                  <div className="bg-orange-50 border-l-4 border-orange-400 p-4 rounded">
+                    <p className="text-sm text-orange-800">
+                      <strong>注意：</strong>差戻しを行うと、申請者は申請内容を修正して再提出できます。
+                    </p>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -333,12 +377,75 @@ export default function AdminApplicationDetailPage() {
                     <textarea
                       {...rejectionForm.register('comment')}
                       rows={5}
-                      className="mt-1 block w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-colors"
+                      className="mt-1 block w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-colors"
                       placeholder="差戻し理由を詳しく入力してください。この内容は申請者に通知されます。"
                     />
                     {rejectionForm.formState.errors.comment && (
                       <p className="mt-1 text-sm text-red-600">
                         {rejectionForm.formState.errors.comment.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex space-x-4 pt-4 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setAction(null)}
+                      className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white font-semibold rounded-lg hover:from-orange-700 hover:to-amber-700 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:transform-none"
+                    >
+                      {isSubmitting ? (
+                        <span className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          処理中...
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center">
+                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          差戻しを確定
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {action === 'cancel' && (
+                <form onSubmit={cancellationForm.handleSubmit(handleCancel)} className="bg-white p-6 rounded-lg border-2 border-red-200 space-y-6">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <h3 className="text-lg font-bold text-gray-900">却下理由を入力</h3>
+                  </div>
+                  <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                    <p className="text-sm text-red-800">
+                      <strong>警告：</strong>却下を行うと、この申請は取り消され、申請者は再提出できません。この操作は取り消せません。
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      却下理由 <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      {...cancellationForm.register('comment')}
+                      rows={5}
+                      className="mt-1 block w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-colors"
+                      placeholder="却下理由を詳しく入力してください。この内容は申請者に通知されます。"
+                    />
+                    {cancellationForm.formState.errors.comment && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {cancellationForm.formState.errors.comment.message}
                       </p>
                     )}
                   </div>
@@ -366,9 +473,9 @@ export default function AdminApplicationDetailPage() {
                       ) : (
                         <span className="flex items-center justify-center">
                           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
-                          差戻しを確定
+                          却下を確定
                         </span>
                       )}
                     </button>

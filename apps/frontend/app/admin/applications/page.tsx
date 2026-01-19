@@ -26,27 +26,72 @@ function AdminApplicationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [applications, setApplications] = useState<ExpenseApplication[]>([]);
+  const [allApplications, setAllApplications] = useState<ExpenseApplication[]>([]); // 会員リスト抽出用
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  
+  // フィルタ・検索状態
+  const [searchQuery, setSearchQuery] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedMemberId, setSelectedMemberId] = useState<number | undefined>(undefined);
+  const [showFilters, setShowFilters] = useState(false);
+  
   const statusParam = searchParams.get('status');
   // 「すべて」を選択した場合（statusパラメータがない場合）はundefinedにしてすべてのステータスを表示
   const status = statusParam || undefined;
+
+  // 会員リストを抽出（申請データから）
+  const memberList = Array.from(
+    new Map(
+      allApplications
+        .filter(app => app.member)
+        .map(app => [app.member!.id, { id: app.member!.id, name: app.member!.name }])
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
 
   useEffect(() => {
     const fetchApplications = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const data = await adminApi.getApplications({
+        // 会員リスト抽出用に全件取得（limitなし）
+        const allData = await adminApi.getApplications({
+          status: undefined,
+          page: 1,
+          limit: 1000,
+        });
+        setAllApplications(allData.items);
+
+        // 表示用データ取得
+        const params: any = {
           status,
           page,
           limit: 20,
-        });
-        setApplications(data.items);
+        };
+
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
+        if (selectedMemberId) params.memberId = selectedMemberId;
+
+        const data = await adminApi.getApplications(params);
+        let filteredItems = data.items;
+
+        // クライアント側で検索クエリによるフィルタリング
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase();
+          filteredItems = filteredItems.filter(app => 
+            app.description?.toLowerCase().includes(query) ||
+            app.member?.name?.toLowerCase().includes(query) ||
+            app.id.toString().includes(query)
+          );
+        }
+
+        setApplications(filteredItems);
         setTotalPages(data.totalPages);
-        console.log('Fetched applications:', data.items.map(app => ({ id: app.id, status: app.status })));
+        console.log('Fetched applications:', filteredItems.map(app => ({ id: app.id, status: app.status })));
       } catch (err: any) {
         console.error('Failed to fetch applications:', err);
         const errorMessage = err.response?.data?.error?.message || '申請一覧の取得に失敗しました';
@@ -57,7 +102,15 @@ function AdminApplicationsContent() {
     };
 
     fetchApplications();
-  }, [status, page]);
+  }, [status, page, startDate, endDate, selectedMemberId]);
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setStartDate('');
+    setEndDate('');
+    setSelectedMemberId(undefined);
+    setPage(1);
+  };
 
   return (
     <MainLayout requireRole="admin">
@@ -72,6 +125,7 @@ function AdminApplicationsContent() {
           </Link>
         </div>
 
+        {/* ステータスフィルタ */}
         <div className="flex space-x-2">
           <Link
             href="/admin/applications"
@@ -92,6 +146,103 @@ function AdminApplicationsContent() {
               {label}
             </Link>
           ))}
+        </div>
+
+        {/* 検索・フィルタセクション */}
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">検索・フィルタ</h2>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              {showFilters ? '閉じる' : '開く'}
+            </button>
+          </div>
+
+          {showFilters && (
+            <div className="space-y-4">
+              {/* 検索 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  検索（申請内容・申請者名・ID）
+                </label>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="検索キーワードを入力..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* 期間フィルタ */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    開始日
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    終了日
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* 会員フィルタ */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  申請者
+                </label>
+                <select
+                  value={selectedMemberId || ''}
+                  onChange={(e) => {
+                    setSelectedMemberId(e.target.value ? Number(e.target.value) : undefined);
+                    setPage(1);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">すべて</option>
+                  {memberList.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* リセットボタン */}
+              {(searchQuery || startDate || endDate || selectedMemberId) && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleResetFilters}
+                    className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    フィルタをリセット
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {error && (
