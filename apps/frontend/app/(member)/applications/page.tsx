@@ -156,7 +156,16 @@ function ApplicationsContent() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {applications.map((app) => (
-                    <tr key={app.id} className="hover:bg-blue-50 transition-colors duration-150">
+                    <tr 
+                      key={app.id} 
+                      className={`transition-colors duration-150 ${
+                        app.status === 'returned' 
+                          ? 'bg-orange-50 hover:bg-orange-100 border-l-4 border-orange-400' 
+                          : app.status === 'rejected'
+                          ? 'bg-red-50 hover:bg-red-100 border-l-4 border-red-400'
+                          : 'hover:bg-blue-50'
+                      }`}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm font-semibold text-gray-900">#{app.id}</span>
                       </td>
@@ -167,11 +176,29 @@ function ApplicationsContent() {
                         <span className="text-sm font-bold text-gray-900">¥{app.amount.toLocaleString()}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-3 py-1 text-xs font-semibold rounded-full ${statusColors[app.status]} shadow-sm`}
-                        >
-                          {statusLabels[app.status]}
-                        </span>
+                        <div className="flex flex-col items-start space-y-1">
+                          <span
+                            className={`px-3 py-1 text-xs font-semibold rounded-full ${statusColors[app.status]} shadow-sm`}
+                          >
+                            {statusLabels[app.status]}
+                          </span>
+                          {app.status === 'returned' && (
+                            <span className="text-xs text-orange-700 font-medium flex items-center">
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01" />
+                              </svg>
+                              修正が必要です
+                            </span>
+                          )}
+                          {app.status === 'rejected' && (
+                            <span className="text-xs text-red-700 font-medium flex items-center">
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              却下されました
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {format(new Date(app.createdAt), 'yyyy年MM月dd日')}
@@ -179,9 +206,15 @@ function ApplicationsContent() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <Link
                           href={`/applications/${app.id}`}
-                          className="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors duration-200 font-medium"
+                          className={`inline-flex items-center px-3 py-1.5 rounded-lg transition-colors duration-200 font-medium ${
+                            app.status === 'returned'
+                              ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                              : app.status === 'rejected'
+                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                              : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                          }`}
                         >
-                          詳細
+                          {app.status === 'returned' ? '確認・修正' : app.status === 'rejected' ? '詳細確認' : '詳細'}
                           <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>

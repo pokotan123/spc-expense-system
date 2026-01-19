@@ -156,9 +156,104 @@ export default function ApplicationDetailPage() {
           </Link>
         </div>
 
+        {/* 差し戻し・却下の場合のアラート表示 */}
+        {application.status === 'returned' && (
+          <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-6 shadow-lg">
+            <div className="flex items-start space-x-4">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-orange-900 mb-2">この申請は差し戻されました</h3>
+                <p className="text-orange-800 mb-4">
+                  事務局から修正の依頼があります。下記の差し戻し理由を確認し、内容を修正して再度申請してください。
+                </p>
+                {application.comments && application.comments.filter((c) => c.commentType === 'return').length > 0 && (
+                  <div className="bg-white border border-orange-200 rounded-lg p-4 mt-3">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                      </svg>
+                      <span className="font-semibold text-orange-900">差し戻し理由</span>
+                    </div>
+                    {application.comments
+                      .filter((c) => c.commentType === 'return')
+                      .map((comment) => (
+                        <div key={comment.id} className="mt-2">
+                          <div className="flex justify-between items-center text-sm text-gray-600 mb-1">
+                            <span>{comment.member?.name || '事務局'}</span>
+                            <span>{format(new Date(comment.createdAt), 'yyyy年MM月dd日 HH:mm')}</span>
+                          </div>
+                          <p className="text-gray-900 whitespace-pre-wrap leading-relaxed text-base bg-orange-50 p-3 rounded border-l-4 border-orange-400">
+                            {comment.comment}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {application.status === 'rejected' && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 shadow-lg">
+            <div className="flex items-start space-x-4">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-red-900 mb-2">この申請は却下されました</h3>
+                <p className="text-red-800 mb-4">
+                  事務局により、この申請は却下されました。新たに申請を行う場合は、新規申請から作成してください。
+                </p>
+                {application.comments && application.comments.filter((c) => c.commentType === 'rejection').length > 0 && (
+                  <div className="bg-white border border-red-200 rounded-lg p-4 mt-3">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                      </svg>
+                      <span className="font-semibold text-red-900">却下理由</span>
+                    </div>
+                    {application.comments
+                      .filter((c) => c.commentType === 'rejection')
+                      .map((comment) => (
+                        <div key={comment.id} className="mt-2">
+                          <div className="flex justify-between items-center text-sm text-gray-600 mb-1">
+                            <span>{comment.member?.name || '事務局'}</span>
+                            <span>{format(new Date(comment.createdAt), 'yyyy年MM月dd日 HH:mm')}</span>
+                          </div>
+                          <p className="text-gray-900 whitespace-pre-wrap leading-relaxed text-base bg-red-50 p-3 rounded border-l-4 border-red-400">
+                            {comment.comment}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="card space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-gradient-to-br from-gray-50 to-blue-50 p-4 rounded-lg border border-gray-200">
+            <div className={`p-4 rounded-lg border ${
+              application.status === 'returned' 
+                ? 'bg-gradient-to-br from-orange-50 to-orange-100 border-orange-300' 
+                : application.status === 'rejected'
+                ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-300'
+                : application.status === 'approved'
+                ? 'bg-gradient-to-br from-green-50 to-green-100 border-green-300'
+                : 'bg-gradient-to-br from-gray-50 to-blue-50 border-gray-200'
+            }`}>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">ステータス</label>
               <span className={`inline-block px-4 py-2 text-sm font-semibold rounded-full ${statusColors[application.status]} shadow-sm`}>
                 {statusLabels[application.status]}
@@ -207,67 +302,25 @@ export default function ApplicationDetailPage() {
             />
           </div>
 
-          {/* 差し戻し理由の表示 */}
-          {application.status === 'returned' && application.comments && application.comments.length > 0 && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
+          {/* 承認コメントの表示 */}
+          {application.status === 'approved' && application.comments && application.comments.filter((c) => c.commentType === 'approval').length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-center space-x-2 mb-3">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <h3 className="text-lg font-bold text-red-900">差し戻し理由</h3>
+                <h3 className="font-semibold text-green-900">承認コメント</h3>
               </div>
-              <div className="space-y-3">
-                {application.comments
-                  .filter((comment) => comment.commentType === 'return')
-                  .map((comment) => (
-                    <div key={comment.id} className="bg-white border border-red-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-semibold text-red-900">{comment.member?.name || '事務局'}</span>
-                          <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded">
-                            差し戻し
-                          </span>
-                        </div>
-                        <span className="text-sm text-gray-600">
-                          {format(new Date(comment.createdAt), 'yyyy年MM月dd日 HH:mm')}
-                        </span>
-                      </div>
-                      <p className="text-gray-900 whitespace-pre-wrap leading-relaxed">{comment.comment}</p>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          {/* その他のコメント（承認コメントなど）の表示 */}
-          {application.comments && application.comments.filter((c) => c.commentType !== 'return').length > 0 && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">コメント</label>
               <div className="space-y-2">
                 {application.comments
-                  .filter((c) => c.commentType !== 'return')
+                  .filter((c) => c.commentType === 'approval')
                   .map((comment) => (
-                    <div key={comment.id} className="border rounded-lg p-4 bg-gray-50">
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-gray-900">{comment.member?.name}</span>
-                          {comment.commentType && (
-                            <span className={`px-2 py-1 text-xs font-medium rounded ${
-                              comment.commentType === 'approval' 
-                                ? 'bg-green-100 text-green-800' 
-                                : comment.commentType === 'rejection'
-                                ? 'bg-gray-100 text-gray-800'
-                                : 'bg-blue-100 text-blue-800'
-                            }`}>
-                              {comment.commentType === 'approval' ? '承認' : comment.commentType === 'rejection' ? '却下' : 'コメント'}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-sm text-gray-500">
-                          {format(new Date(comment.createdAt), 'yyyy/MM/dd HH:mm')}
-                        </span>
+                    <div key={comment.id} className="bg-white border border-green-100 rounded p-3">
+                      <div className="flex justify-between items-center text-sm text-gray-600 mb-1">
+                        <span>{comment.member?.name || '事務局'}</span>
+                        <span>{format(new Date(comment.createdAt), 'yyyy/MM/dd HH:mm')}</span>
                       </div>
-                      <p className="mt-1 text-gray-900 whitespace-pre-wrap">{comment.comment}</p>
+                      <p className="text-gray-900 whitespace-pre-wrap">{comment.comment}</p>
                     </div>
                   ))}
               </div>
