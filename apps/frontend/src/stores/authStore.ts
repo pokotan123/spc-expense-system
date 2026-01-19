@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { Member } from '@/types';
 
 interface AuthState {
@@ -9,23 +10,24 @@ interface AuthState {
   isAuthenticated: () => boolean;
 }
 
-export const useAuthStore = create<AuthState>()((set, get) => ({
-  member: null,
-  accessToken: null,
-  setAuth: (member, accessToken) => {
-    set({ member, accessToken });
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('accessToken', accessToken);
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
+      member: null,
+      accessToken: null,
+      setAuth: (member, accessToken) => {
+        set({ member, accessToken });
+      },
+      clearAuth: () => {
+        set({ member: null, accessToken: null });
+      },
+      isAuthenticated: () => {
+        return get().member !== null && get().accessToken !== null;
+      },
+    }),
+    {
+      name: 'auth-storage', // localStorageのキー名
+      storage: createJSONStorage(() => localStorage),
     }
-  },
-  clearAuth: () => {
-    set({ member: null, accessToken: null });
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-    }
-  },
-  isAuthenticated: () => {
-    return get().member !== null && get().accessToken !== null;
-  },
-}));
+  )
+);
