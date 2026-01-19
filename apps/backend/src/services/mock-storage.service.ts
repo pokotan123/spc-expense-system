@@ -157,6 +157,28 @@ class MockStorageService {
     this.comments.set(newComment.id, newComment);
     return { ...newComment };
   }
+
+  /**
+   * 領収書を申請に追加
+   */
+  addReceipt(expenseApplicationId: number, receipt: any): void {
+    const application = this.applications.get(expenseApplicationId);
+    if (application) {
+      if (!application.receipts) {
+        application.receipts = [];
+      }
+      application.receipts.push(receipt);
+      this.applications.set(expenseApplicationId, application);
+    }
+  }
+
+  /**
+   * 申請の領収書を取得
+   */
+  getReceiptsByApplicationId(expenseApplicationId: number): any[] {
+    const application = this.applications.get(expenseApplicationId);
+    return application?.receipts || [];
+  }
 }
 
 export const mockStorageService = new MockStorageService();
