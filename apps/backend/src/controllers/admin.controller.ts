@@ -332,7 +332,18 @@ export const adminController = {
           });
         }
 
-        // コメントを追加（モックストレージにはコメント機能がないため、スキップ）
+        // コメントを追加
+        const comments = [];
+        if (comment) {
+          const savedComment = mockStorageService.addComment(
+            Number(id),
+            req.user!.id,
+            comment,
+            'approval'
+          );
+          comments.push(savedComment);
+        }
+        
         result = {
           ...mockApp,
           member: {
@@ -355,6 +366,7 @@ export const adminController = {
             lastLoginAt: null,
           },
           internalCategory: null,
+          comments,
         };
       }
 
