@@ -11,9 +11,10 @@ interface ReceiptListProps {
   onDelete: (receiptId: number) => void;
   onOCRComplete?: (receiptId: number, ocrResult: OCRResult) => void;
   canEdit?: boolean;
+  showOCRButton?: boolean; // 管理者画面でのみ表示
 }
 
-export default function ReceiptList({ receipts, expenseApplicationId, onDelete, onOCRComplete, canEdit = true }: ReceiptListProps) {
+export default function ReceiptList({ receipts, expenseApplicationId, onDelete, onOCRComplete, canEdit = true, showOCRButton = false }: ReceiptListProps) {
   const [processingOCR, setProcessingOCR] = useState<number | null>(null);
   const [ocrResults, setOcrResults] = useState<Record<number, OCRResult>>({});
 
@@ -119,7 +120,7 @@ export default function ReceiptList({ receipts, expenseApplicationId, onDelete, 
                   </svg>
                   表示
                 </a>
-                {canEdit && (
+                {showOCRButton && (
                   <button
                     onClick={() => handleOCR(receipt.id)}
                     disabled={processingOCR === receipt.id}
