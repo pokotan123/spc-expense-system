@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../config/database';
 import { subsidyCalculationService } from '../services/subsidy-calculation.service';
 import { mockStorageService } from '../services/mock-storage.service';
+import { dbHealthChecker } from '../utils/db-health';
 
 export const expenseApplicationController = {
   getList: async (req: AuthRequest, res: Response) => {
@@ -25,34 +26,11 @@ export const expenseApplicationController = {
       let items: any[];
       let total: number;
 
-      try {
-        const [dbItems, dbTotal] = await Promise.all([
-          prisma.expenseApplication.findMany({
-            where,
-            include: {
-              member: {
-                include: { department: true },
-              },
-              internalCategory: true,
-              receipts: {
-                include: { ocrResult: true },
-              },
-              comments: {
-                include: { member: true },
-                orderBy: { createdAt: 'desc' },
-              },
-            },
-            orderBy: { createdAt: 'desc' },
-            skip: (Number(page) - 1) * Number(limit),
-            take: Number(limit),
-          }),
-          prisma.expenseApplication.count({ where }),
-        ]);
-        items = dbItems;
-        total = dbTotal;
-      } catch (dbError: any) {
-        // データベース接続エラーの場合、モックストレージから取得
-        console.warn('Database connection error, using mock storage:', dbError.message);
+      // データベース接続を確認（キャッシュ付き）
+      const isDbConnected = await dbHealthChecker.checkConnection();
+
+      if (!isDbConnected) {
+        // モックストレージから取得
         const mockApps = req.user!.role === 'member'
           ? mockStorageService.getApplicationsByMemberId(memberId, status as string)
           : mockStorageService.getAllApplications(status as string);
@@ -87,6 +65,31 @@ export const expenseApplicationController = {
           comments: app.comments || [],
           internalCategory: null,
         }));
+      } else {
+        const [dbItems, dbTotal] = await Promise.all([
+          prisma.expenseApplication.findMany({
+            where,
+            include: {
+              member: {
+                include: { department: true },
+              },
+              internalCategory: true,
+              receipts: {
+                include: { ocrResult: true },
+              },
+              comments: {
+                include: { member: true },
+                orderBy: { createdAt: 'desc' },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            skip: (Number(page) - 1) * Number(limit),
+            take: Number(limit),
+          }),
+          prisma.expenseApplication.count({ where }),
+        ]);
+        items = dbItems;
+        total = dbTotal;
       }
 
       res.json({
@@ -121,7 +124,12 @@ export const expenseApplicationController = {
       let application;
       let usingMock = false;
 
-      try {
+      // データベース接続を確認（キャッシュ付き）
+      const isDbConnected = await dbHealthChecker.checkConnection();
+
+      if (!isDbConnected) {
+        usingMock = true;
+      } else {
         application = await prisma.expenseApplication.findUnique({
           where: { id: Number(id) },
           include: {
@@ -138,13 +146,9 @@ export const expenseApplicationController = {
             },
           },
         });
-      } catch (dbError: any) {
-        // データベース接続エラーの場合、モックストレージから取得
-        console.warn('Database connection error, using mock storage:', dbError.message);
-        usingMock = true;
       }
 
-      // データベースから取得できなかった場合、モックストレージから取得
+      // データベースから取得できなかった、またはDB接続がない場合、モックストレージから取得
       if (!application) {
         const mockApp = mockStorageService.getApplicationById(Number(id));
         if (mockApp) {
@@ -230,30 +234,14 @@ export const expenseApplicationController = {
         });
       }
 
+      // データベース接続を確認（キャッシュ付き）
+      const isDbConnected = await dbHealthChecker.checkConnection();
+
       let newApplication;
-      try {
-        newApplication = await prisma.expenseApplication.create({
-          data: {
-            memberId: req.user!.id,
-            status: 'draft',
-            expenseDate: new Date(expenseDate),
-            amount: Number(amount),
-            description,
-            isCashPayment: false,
-          },
-          include: {
-            member: {
-              include: { department: true },
-            },
-          },
-        });
-      } catch (dbError: any) {
-        // データベース接続エラーの場合、モックデータを返す
-        console.warn('Database connection error, using mock data:', dbError.message);
-        
+      if (!isDbConnected) {
         // モック申請データを作成
         const mockApplication = {
-          id: Date.now(), // タイムスタンプをIDとして使用
+          id: Date.now(),
           memberId: req.user!.id,
           status: 'draft',
           expenseDate: new Date(expenseDate),
@@ -302,6 +290,23 @@ export const expenseApplicationController = {
         });
       }
 
+      newApplication = await prisma.expenseApplication.create({
+          data: {
+            memberId: req.user!.id,
+            status: 'draft',
+            expenseDate: new Date(expenseDate),
+            amount: Number(amount),
+            description,
+            isCashPayment: false,
+          },
+          include: {
+            member: {
+              include: { department: true },
+            },
+          },
+        });
+      }
+
       res.status(201).json({
         ...newApplication,
         expenseDate: newApplication.expenseDate.toISOString().split('T')[0],
@@ -326,23 +331,22 @@ export const expenseApplicationController = {
       let application: any;
       let usingMock = false;
 
-      try {
+      // データベース接続を確認（キャッシュ付き）
+      const isDbConnected = await dbHealthChecker.checkConnection();
+
+      if (!isDbConnected) {
+        application = mockStorageService.getApplicationById(Number(id));
+        usingMock = true;
+      } else {
         application = await prisma.expenseApplication.findUnique({
           where: { id: Number(id) },
         });
-      } catch (dbError: any) {
-        // データベース接続エラーの場合、モックストレージから取得
-        console.warn('Database connection error, using mock storage:', dbError.message);
-        application = mockStorageService.getApplicationById(Number(id));
-        usingMock = true;
       }
 
-      if (!application) {
-        // DBから取得できなかった場合もモックストレージを確認
-        if (!usingMock) {
-          application = mockStorageService.getApplicationById(Number(id));
-          usingMock = true;
-        }
+      if (!application && !usingMock) {
+        // DBから取得できなかった場合はモックストレージを確認
+        application = mockStorageService.getApplicationById(Number(id));
+        usingMock = true;
       }
 
       if (!application) {
@@ -375,24 +379,8 @@ export const expenseApplicationController = {
 
       let updated: any;
 
-      try {
-        updated = await prisma.expenseApplication.update({
-          where: { id: Number(id) },
-          data: {
-            ...(expenseDate && { expenseDate: new Date(expenseDate) }),
-            ...(amount !== undefined && { amount: Number(amount) }),
-            ...(description && { description }),
-          },
-          include: {
-            member: {
-              include: { department: true },
-            },
-            internalCategory: true,
-          },
-        });
-      } catch (dbError: any) {
-        // データベース接続エラーの場合、モックストレージを更新
-        console.warn('Database connection error, using mock storage:', dbError.message);
+      if (usingMock) {
+        // モックストレージを更新
         const mockApp = mockStorageService.updateApplication(Number(id), {
           ...(expenseDate && { expenseDate: new Date(expenseDate) }),
           ...(amount !== undefined && { amount: Number(amount) }),
@@ -431,6 +419,21 @@ export const expenseApplicationController = {
           },
           internalCategory: null,
         };
+      } else {
+        updated = await prisma.expenseApplication.update({
+          where: { id: Number(id) },
+          data: {
+            ...(expenseDate && { expenseDate: new Date(expenseDate) }),
+            ...(amount !== undefined && { amount: Number(amount) }),
+            ...(description && { description }),
+          },
+          include: {
+            member: {
+              include: { department: true },
+            },
+            internalCategory: true,
+          },
+        });
       }
 
       res.json({
@@ -498,19 +501,27 @@ export const expenseApplicationController = {
       let application: any;
       let usingMock = false;
 
-      try {
+      // データベース接続を確認（キャッシュ付き）
+      const isDbConnected = await dbHealthChecker.checkConnection();
+
+      if (!isDbConnected) {
+        const mockApp = mockStorageService.getApplicationById(Number(id));
+        if (mockApp) {
+          application = {
+            ...mockApp,
+            receipts: mockApp.receipts || [],
+          };
+          usingMock = true;
+        }
+      } else {
         application = await prisma.expenseApplication.findUnique({
           where: { id: Number(id) },
           include: { receipts: true },
         });
-      } catch (dbError: any) {
-        // データベース接続エラーの場合、モックストレージから取得
-        console.warn('Database connection error, using mock storage:', dbError.message);
-        usingMock = true;
       }
 
       // データベースから取得できなかった場合、モックストレージから取得
-      if (!application) {
+      if (!application && !usingMock) {
         const mockApp = mockStorageService.getApplicationById(Number(id));
         if (mockApp) {
           application = {
@@ -551,27 +562,8 @@ export const expenseApplicationController = {
 
       let updated: any;
 
-      try {
-        updated = await prisma.expenseApplication.update({
-          where: { id: Number(id) },
-          data: {
-            status: 'submitted',
-            submittedAt: new Date(),
-          },
-          include: {
-            member: {
-              include: { department: true },
-            },
-            internalCategory: true,
-          },
-        });
-      } catch (dbError: any) {
-        // データベース接続エラーの場合、モックストレージを更新
-        console.warn('Database connection error, using mock storage:', dbError.message);
-      }
-
-      // データベースから更新できなかった場合、モックストレージを更新
-      if (!updated) {
+      if (usingMock) {
+        // モックストレージを更新
         const mockApp = mockStorageService.updateApplication(Number(id), {
           status: 'submitted',
           submittedAt: new Date(),
