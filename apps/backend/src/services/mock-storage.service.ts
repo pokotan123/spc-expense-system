@@ -3,6 +3,16 @@
  * データベース接続がない場合に使用するメモリ上のストレージ
  */
 
+interface MockComment {
+  id: number;
+  expenseApplicationId: number;
+  memberId: number;
+  comment: string;
+  commentType: 'approval' | 'rejection' | 'return' | 'general';
+  createdAt: Date;
+  member?: any;
+}
+
 interface MockApplication {
   id: number;
   memberId: number;
@@ -21,12 +31,14 @@ interface MockApplication {
   rejectedAt?: Date | null;
   member?: any;
   receipts?: any[];
-  comments?: any[];
+  comments?: MockComment[];
 }
 
 class MockStorageService {
   private applications: Map<number, MockApplication> = new Map();
+  private comments: Map<number, MockComment> = new Map();
   private nextId: number = Date.now();
+  private nextCommentId: number = Date.now();
 
   /**
    * 申請を保存
@@ -44,7 +56,19 @@ class MockStorageService {
    */
   getApplicationById(id: number): MockApplication | null {
     const application = this.applications.get(id);
-    return application ? { ...application } : null;
+    if (!application) {
+      return null;
+    }
+    
+    // コメントを取得
+    const appComments = Array.from(this.comments.values())
+      .filter((c) => c.expenseApplicationId === id)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    
+    return {
+      ...application,
+      comments: appComments,
+    };
   }
 
   /**
@@ -98,9 +122,40 @@ class MockStorageService {
       applications = applications.filter((app) => app.status === status);
     }
 
-    return applications.map((app) => ({ ...app })).sort((a, b) => {
+    return applications.map((app) => {
+      // コメントを取得
+      const appComments = Array.from(this.comments.values())
+        .filter((c) => c.expenseApplicationId === app.id)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      
+      return {
+        ...app,
+        comments: appComments,
+      };
+    }).sort((a, b) => {
       return b.createdAt.getTime() - a.createdAt.getTime();
     });
+  }
+
+  /**
+   * コメントを追加
+   */
+  addComment(expenseApplicationId: number, memberId: number, comment: string, commentType: 'approval' | 'rejection' | 'return' | 'general'): MockComment {
+    const newComment: MockComment = {
+      id: this.nextCommentId++,
+      expenseApplicationId,
+      memberId,
+      comment,
+      commentType,
+      createdAt: new Date(),
+      member: {
+        id: memberId,
+        name: '事務局',
+        role: 'admin',
+      },
+    };
+    this.comments.set(newComment.id, newComment);
+    return { ...newComment };
   }
 }
 
