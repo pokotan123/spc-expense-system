@@ -94,6 +94,29 @@ export default function ApplicationDetailPage() {
     }
   };
 
+  const handleSaveDraft = async () => {
+    if (!application || application.status !== 'draft') return;
+
+    setIsSubmitting(true);
+    try {
+      // 下書きとして保存（現在の状態を維持）
+      await expenseApplicationApi.update(application.id, {
+        expenseDate: application.expenseDate,
+        amount: application.amount,
+        description: application.description,
+      });
+      // 申請データを再取得して最新の状態を反映
+      const data = await expenseApplicationApi.getById(id);
+      setApplication(data);
+      alert('下書きとして保存しました');
+    } catch (error) {
+      console.error('Failed to save draft:', error);
+      alert('下書きの保存に失敗しました');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <MainLayout>
@@ -211,6 +234,30 @@ export default function ApplicationDetailPage() {
               >
                 編集
               </Link>
+              {application.status === 'draft' && (
+                <button
+                  onClick={handleSaveDraft}
+                  disabled={isSubmitting}
+                  className="px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      保存中...
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                      </svg>
+                      下書きとして保存
+                    </span>
+                  )}
+                </button>
+              )}
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
@@ -225,7 +272,12 @@ export default function ApplicationDetailPage() {
                     送信中...
                   </span>
                 ) : (
-                  '申請を送信'
+                  <span className="flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    申請を送信
+                  </span>
                 )}
               </button>
             </div>

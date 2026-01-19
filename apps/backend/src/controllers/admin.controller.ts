@@ -19,8 +19,12 @@ export const adminController = {
 
       const where: any = {};
 
+      // 事務局向け申請一覧では下書き状態の申請は表示しない
       if (status) {
         where.status = status;
+      } else {
+        // statusが指定されていない場合（すべて）は下書きを除外
+        where.status = { not: 'draft' };
       }
 
       if (memberId) {
@@ -66,7 +70,12 @@ export const adminController = {
       } catch (dbError: any) {
         // データベース接続エラーの場合、モックストレージから取得
         console.warn('Database connection error, using mock storage:', dbError.message);
-        const mockApps = mockStorageService.getAllApplications(status as string);
+        let mockApps = mockStorageService.getAllApplications(status as string);
+        
+        // 事務局向け申請一覧では下書き状態の申請は表示しない
+        if (!status) {
+          mockApps = mockApps.filter(app => app.status !== 'draft');
+        }
         
         total = mockApps.length;
         const startIndex = (Number(page) - 1) * Number(limit);
