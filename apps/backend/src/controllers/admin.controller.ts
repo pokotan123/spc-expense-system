@@ -5,6 +5,54 @@ import { subsidyCalculationService } from '../services/subsidy-calculation.servi
 import { mockStorageService } from '../services/mock-storage.service';
 
 export const adminController = {
+  // 申請を持つ会員のリストを取得（軽量版）
+  getMembersWithApplications: async (req: AuthRequest, res: Response) => {
+    try {
+      let members: { id: number; name: string }[] = [];
+
+      try {
+        // 申請を持つ会員のみを取得（下書き以外）
+        const applications = await prisma.expenseApplication.findMany({
+          where: {
+            status: { not: 'draft' },
+          },
+          select: {
+            member: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          distinct: ['memberId'],
+        });
+
+        members = applications
+          .filter(app => app.member)
+          .map(app => ({
+            id: app.member.id,
+            name: app.member.name,
+          }));
+      } catch (dbError: any) {
+        console.warn('Database connection error, using mock storage:', dbError.message);
+        // モックストレージからは空リストを返す
+        members = [];
+      }
+
+      res.json({
+        items: members.sort((a, b) => a.name.localeCompare(b.name)),
+      });
+    } catch (error: any) {
+      console.error('Get members with applications error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '会員リストの取得に失敗しました',
+        },
+      });
+    }
+  },
+
   getApplications: async (req: AuthRequest, res: Response) => {
     try {
       const {
@@ -57,7 +105,12 @@ export const adminController = {
                 include: { department: true },
               },
               internalCategory: true,
-              receipts: true,
+              receipts: {
+                select: {
+                  id: true,
+                  fileName: true,
+                },
+              },
             },
             orderBy: { createdAt: 'desc' },
             skip: (Number(page) - 1) * Number(limit),

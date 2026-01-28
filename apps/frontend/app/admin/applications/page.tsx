@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import MainLayout from '@/components/layouts/MainLayout';
 import { adminApi } from '@/lib/api/admin';
@@ -26,46 +26,48 @@ function AdminApplicationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [applications, setApplications] = useState<ExpenseApplication[]>([]);
-  const [allApplications, setAllApplications] = useState<ExpenseApplication[]>([]); // 会員リスト抽出用
+  const [memberList, setMemberList] = useState<{ id: number; name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  
+
   // フィルタ・検索状態
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedMemberId, setSelectedMemberId] = useState<number | undefined>(undefined);
   const [showFilters, setShowFilters] = useState(false);
-  
+
+  // 会員リスト取得済みフラグ
+  const memberListFetched = useRef(false);
+
   const statusParam = searchParams.get('status');
   // 「すべて」を選択した場合（statusパラメータがない場合）はundefinedにしてすべてのステータスを表示
   const status = statusParam || undefined;
 
-  // 会員リストを抽出（申請データから）
-  const memberList = Array.from(
-    new Map(
-      allApplications
-        .filter(app => app.member)
-        .map(app => [app.member!.id, { id: app.member!.id, name: app.member!.name }])
-    ).values()
-  ).sort((a, b) => a.name.localeCompare(b.name));
+  // 会員リストを初回のみ取得（軽量な専用エンドポイントを使用）
+  useEffect(() => {
+    if (memberListFetched.current) return;
+    memberListFetched.current = true;
+
+    const fetchMemberList = async () => {
+      try {
+        const data = await adminApi.getMembersWithApplications();
+        setMemberList(data.items);
+      } catch (err) {
+        console.error('Failed to fetch member list:', err);
+      }
+    };
+    fetchMemberList();
+  }, []);
 
   useEffect(() => {
     const fetchApplications = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        // 会員リスト抽出用に全件取得（limitなし）
-        const allData = await adminApi.getApplications({
-          status: undefined,
-          page: 1,
-          limit: 1000,
-        });
-        setAllApplications(allData.items);
-
-        // 表示用データ取得
+        // 表示用データ取得（1回のAPIコールのみ）
         const params: any = {
           status,
           page,
@@ -82,7 +84,7 @@ function AdminApplicationsContent() {
         // クライアント側で検索クエリによるフィルタリング
         if (searchQuery.trim()) {
           const query = searchQuery.toLowerCase();
-          filteredItems = filteredItems.filter(app => 
+          filteredItems = filteredItems.filter(app =>
             app.description?.toLowerCase().includes(query) ||
             app.member?.name?.toLowerCase().includes(query) ||
             app.id.toString().includes(query)
@@ -91,7 +93,6 @@ function AdminApplicationsContent() {
 
         setApplications(filteredItems);
         setTotalPages(data.totalPages);
-        console.log('Fetched applications:', filteredItems.map(app => ({ id: app.id, status: app.status })));
       } catch (err: any) {
         console.error('Failed to fetch applications:', err);
         const errorMessage = err.response?.data?.error?.message || '申請一覧の取得に失敗しました';

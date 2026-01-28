@@ -20,6 +20,7 @@ router.use((req: any, res, next) => {
   next();
 });
 
+router.get('/members-with-applications', adminController.getMembersWithApplications);
 router.get('/expense-applications', adminController.getApplications);
 router.get('/expense-applications/:id', adminController.getApplicationById);
 router.post('/expense-applications/:id/approve', validate(validators.approval), adminController.approve);

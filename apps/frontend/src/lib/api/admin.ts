@@ -2,6 +2,12 @@ import { api } from './client';
 import { ExpenseApplication } from '@/types';
 
 export const adminApi = {
+  // 申請を持つ会員リストを取得（軽量版）
+  getMembersWithApplications: async (): Promise<{ items: { id: number; name: string }[] }> => {
+    const response = await api.get('/admin/members-with-applications');
+    return response.data;
+  },
+
   getApplications: async (params?: {
     status?: string;
     memberId?: number;
