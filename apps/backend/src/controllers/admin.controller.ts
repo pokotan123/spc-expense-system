@@ -278,7 +278,7 @@ export const adminController = {
         );
 
         // トランザクションで承認とコメントを同時に作成
-        result = await prisma.$transaction(async (tx) => {
+        result = await prisma.$transaction(async (tx: any) => {
           const updated = await tx.expenseApplication.update({
             where: { id: Number(id) },
             data: {
@@ -436,7 +436,7 @@ export const adminController = {
 
       try {
         // トランザクションで差戻しとコメントを同時に作成
-        result = await prisma.$transaction(async (tx) => {
+        result = await prisma.$transaction(async (tx: any) => {
           const updated = await tx.expenseApplication.update({
             where: { id: Number(id) },
             data: {
@@ -576,7 +576,7 @@ export const adminController = {
 
       try {
         // トランザクションで却下とコメントを同時に作成
-        result = await prisma.$transaction(async (tx) => {
+        result = await prisma.$transaction(async (tx: any) => {
           const updated = await tx.expenseApplication.update({
             where: { id: Number(id) },
             data: {
@@ -706,12 +706,12 @@ export const adminController = {
       });
 
       const totalAmount = applications.reduce(
-        (sum, app) => sum + (app.finalAmount?.toNumber() || 0),
+        (sum: number, app: any) => sum + (app.finalAmount?.toNumber() || 0),
         0
       );
 
       res.json({
-        items: applications.map((app) => ({
+        items: applications.map((app: any) => ({
           expenseApplicationId: app.id,
           memberId: app.memberId,
           member: app.member,
@@ -767,7 +767,7 @@ export const adminController = {
       }
 
       // CSV形式で振込データを生成
-      const csvLines = applications.map((app) => {
+      const csvLines = applications.map((app: any) => {
         const amount = app.finalAmount?.toNumber() || 0;
         // 銀行フォーマット（簡易版）
         return `${app.member.name},${amount},${app.expenseDate.toISOString().split('T')[0]}`;
@@ -776,13 +776,13 @@ export const adminController = {
       const csvData = ['申請者名,金額,経費発生日', ...csvLines].join('\n');
 
       const totalAmount = applications.reduce(
-        (sum, app) => sum + (app.finalAmount?.toNumber() || 0),
+        (sum: number, app: any) => sum + (app.finalAmount?.toNumber() || 0),
         0
       );
 
       // 振込情報を保存
       await prisma.$transaction(
-        applications.map((app) =>
+        applications.map((app: any) =>
           prisma.payment.upsert({
             where: { expenseApplicationId: app.id },
             create: {

@@ -291,21 +291,20 @@ export const expenseApplicationController = {
       }
 
       newApplication = await prisma.expenseApplication.create({
-          data: {
-            memberId: req.user!.id,
-            status: 'draft',
-            expenseDate: new Date(expenseDate),
-            amount: Number(amount),
-            description,
-            isCashPayment: false,
+        data: {
+          memberId: req.user!.id,
+          status: 'draft',
+          expenseDate: new Date(expenseDate),
+          amount: Number(amount),
+          description,
+          isCashPayment: false,
+        },
+        include: {
+          member: {
+            include: { department: true },
           },
-          include: {
-            member: {
-              include: { department: true },
-            },
-          },
-        });
-      }
+        },
+      });
 
       res.status(201).json({
         ...newApplication,
@@ -601,6 +600,21 @@ export const expenseApplicationController = {
           },
           internalCategory: null,
         };
+      } else {
+        // データベースを更新
+        updated = await prisma.expenseApplication.update({
+          where: { id: Number(id) },
+          data: {
+            status: 'submitted',
+            submittedAt: new Date(),
+          },
+          include: {
+            member: {
+              include: { department: true },
+            },
+            internalCategory: true,
+          },
+        });
       }
 
       res.json({
