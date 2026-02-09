@@ -1,0 +1,213 @@
+// SPC Expense Management System - Prisma Schema
+// PostgreSQL with UUID primary keys
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------
+// Enums
+// ---------------------
+
+enum MemberRole {
+  MEMBER
+  ADMIN
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  RETURNED
+  APPROVED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum CommentType {
+  SUBMISSION
+  APPROVAL
+  RETURN
+  REJECTION
+  GENERAL
+}
+
+// ---------------------
+// Models
+// ---------------------
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members Member[]
+
+  @@map("departments")
+}
+
+model Member {
+  id           String     @id @default(uuid())
+  memberId     String     @unique @map("member_id")
+  name         String
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  departmentId String?    @map("department_id")
+  role         MemberRole @default(MEMBER)
+  isActive     Boolean    @default(true) @map("is_active")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  department          Department?          @relation(fields: [departmentId], references: [id])
+  expenseApplications ExpenseApplication[] @relation("applicant")
+  approvedApplications ExpenseApplication[] @relation("approver")
+  comments            ApplicationComment[]
+  refreshTokens       RefreshToken[]
+
+  @@map("members")
+}
+
+model InternalCategory {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  expenseApplications ExpenseApplication[]
+
+  @@map("internal_categories")
+}
+
+model ExpenseApplication {
+  id                 String            @id @default(uuid())
+  applicationNumber  String            @unique @map("application_number")
+  memberId           String            @map("member_id")
+  status             ApplicationStatus @default(DRAFT)
+  expenseDate        DateTime          @map("expense_date")
+  amount             Decimal           @db.Decimal(10, 0)
+  proposedAmount     Decimal?          @map("proposed_amount") @db.Decimal(10, 0)
+  finalAmount        Decimal?          @map("final_amount") @db.Decimal(10, 0)
+  description        String
+  internalCategoryId String?           @map("internal_category_id")
+  isCashPayment      Boolean           @default(false) @map("is_cash_payment")
+  submittedAt        DateTime?         @map("submitted_at")
+  approvedAt         DateTime?         @map("approved_at")
+  rejectedAt         DateTime?         @map("rejected_at")
+  approvedById       String?           @map("approved_by_id")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  member           Member            @relation("applicant", fields: [memberId], references: [id])
+  approvedBy       Member?           @relation("approver", fields: [approvedById], references: [id])
+  internalCategory InternalCategory? @relation(fields: [internalCategoryId], references: [id])
+  receipts         Receipt[]
+  comments         ApplicationComment[]
+  payments         Payment[]
+
+  @@index([memberId, status])
+  @@index([status, submittedAt])
+  @@map("expense_applications")
+}
+
+model Receipt {
+  id                     String   @id @default(uuid())
+  expenseApplicationId   String   @map("expense_application_id")
+  fileName               String   @map("file_name")
+  filePath               String   @map("file_path")
+  fileUrl                String?  @map("file_url")
+  fileSize               Int      @map("file_size")
+  mimeType               String   @map("mime_type")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  expenseApplication ExpenseApplication @relation(fields: [expenseApplicationId], references: [id])
+  ocrResult          OcrResult?
+
+  @@map("receipts")
+}
+
+model OcrResult {
+  id                String    @id @default(uuid())
+  receiptId         String    @unique @map("receipt_id")
+  extractedDate     String?   @map("extracted_date")
+  extractedAmount   String?   @map("extracted_amount")
+  extractedStoreName String?  @map("extracted_store_name")
+  extractedText     String?   @map("extracted_text")
+  confidence        Float?
+  status            OcrStatus @default(PENDING)
+  errorMessage      String?   @map("error_message")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  receipt Receipt @relation(fields: [receiptId], references: [id])
+
+  @@map("ocr_results")
+}
+
+model ApplicationComment {
+  id                     String      @id @default(uuid())
+  expenseApplicationId   String      @map("expense_application_id")
+  memberId               String      @map("member_id")
+  comment                String
+  commentType            CommentType @map("comment_type")
+  createdAt              DateTime    @default(now()) @map("created_at")
+
+  expenseApplication ExpenseApplication @relation(fields: [expenseApplicationId], references: [id])
+  member             Member             @relation(fields: [memberId], references: [id])
+
+  @@index([expenseApplicationId, createdAt])
+  @@map("application_comments")
+}
+
+model Payment {
+  id                     String        @id @default(uuid())
+  expenseApplicationId   String        @map("expense_application_id")
+  paymentStatus          PaymentStatus @default(PENDING) @map("payment_status")
+  paymentDate            DateTime?     @map("payment_date")
+  bankData               Json?         @map("bank_data")
+  batchId                String?       @map("batch_id")
+  createdAt              DateTime      @default(now()) @map("created_at")
+  updatedAt              DateTime      @updatedAt @map("updated_at")
+
+  expenseApplication ExpenseApplication @relation(fields: [expenseApplicationId], references: [id])
+
+  @@index([paymentStatus])
+  @@index([batchId])
+  @@map("payments")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  memberId  String   @map("member_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@index([memberId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
