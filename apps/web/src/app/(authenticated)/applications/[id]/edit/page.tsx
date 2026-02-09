@@ -1,11 +1,13 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ApplicationForm } from '@/components/application/application-form'
+import { SubmitDialog } from '@/components/application/submit-dialog'
 import {
   useApplicationDetail,
   useUpdateApplication,
+  useSubmitApplication,
   useUploadReceipt,
   useDeleteReceipt,
 } from '@/hooks/use-applications'
@@ -23,8 +25,10 @@ export default function EditApplicationPage({
   const { toast } = useToast()
   const { data: application, isLoading } = useApplicationDetail(id)
   const updateMutation = useUpdateApplication(id)
+  const submitMutation = useSubmitApplication()
   const uploadMutation = useUploadReceipt(id)
   const deleteMutation = useDeleteReceipt(id)
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false)
 
   async function handleSave(values: ApplicationFormValues) {
     try {
@@ -40,6 +44,40 @@ export default function EditApplicationPage({
     } catch (error) {
       toast({
         title: '更新に失敗しました',
+        description: error instanceof Error ? error.message : '予期せぬエラーが発生しました',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  async function handleSubmitRequest(values: ApplicationFormValues) {
+    try {
+      await updateMutation.mutateAsync({
+        expenseDate: values.expenseDate,
+        amount: values.amount,
+        description: values.description,
+        isCashPayment: values.isCashPayment,
+        internalCategoryId: values.internalCategoryId,
+      })
+      setShowSubmitDialog(true)
+    } catch (error) {
+      toast({
+        title: '保存に失敗しました',
+        description: error instanceof Error ? error.message : '予期せぬエラーが発生しました',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  async function handleConfirmSubmit(comment?: string) {
+    try {
+      await submitMutation.mutateAsync({ id, comment })
+      setShowSubmitDialog(false)
+      toast({ title: '申請を提出しました' })
+      router.push(`/applications/${id}`)
+    } catch (error) {
+      toast({
+        title: '提出に失敗しました',
         description: error instanceof Error ? error.message : '予期せぬエラーが発生しました',
         variant: 'destructive',
       })
@@ -102,10 +140,18 @@ export default function EditApplicationPage({
         }}
         receipts={application.receipts}
         onSave={handleSave}
+        onSubmit={handleSubmitRequest}
         onUploadReceipt={handleUpload}
         onRemoveReceipt={handleRemoveReceipt}
         isSaving={updateMutation.isPending}
+        isSubmitting={submitMutation.isPending}
         isUploading={uploadMutation.isPending}
+      />
+      <SubmitDialog
+        open={showSubmitDialog}
+        onOpenChange={setShowSubmitDialog}
+        onConfirm={handleConfirmSubmit}
+        isSubmitting={submitMutation.isPending}
       />
     </div>
   )

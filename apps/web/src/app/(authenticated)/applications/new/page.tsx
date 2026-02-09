@@ -1,8 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ApplicationForm } from '@/components/application/application-form'
-import { useCreateApplication } from '@/hooks/use-applications'
+import { SubmitDialog } from '@/components/application/submit-dialog'
+import { useCreateApplication, useSubmitApplication } from '@/hooks/use-applications'
 import { useToast } from '@/components/ui/use-toast'
 import type { ApplicationFormValues } from '@/lib/validations'
 
@@ -10,6 +12,9 @@ export default function NewApplicationPage() {
   const router = useRouter()
   const { toast } = useToast()
   const createMutation = useCreateApplication()
+  const submitMutation = useSubmitApplication()
+  const [pendingSubmitId, setPendingSubmitId] = useState<string | null>(null)
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false)
 
   async function handleSave(values: ApplicationFormValues) {
     try {
@@ -34,12 +39,56 @@ export default function NewApplicationPage() {
     }
   }
 
+  async function handleSubmitRequest(values: ApplicationFormValues) {
+    try {
+      const app = await createMutation.mutateAsync({
+        expenseDate: values.expenseDate,
+        amount: values.amount,
+        description: values.description,
+        isCashPayment: values.isCashPayment,
+        internalCategoryId: values.internalCategoryId,
+      })
+      setPendingSubmitId(app.id)
+      setShowSubmitDialog(true)
+    } catch (error) {
+      toast({
+        title: '保存に失敗しました',
+        description: error instanceof Error ? error.message : '予期せぬエラーが発生しました',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  async function handleConfirmSubmit(comment?: string) {
+    if (!pendingSubmitId) return
+    try {
+      await submitMutation.mutateAsync({ id: pendingSubmitId, comment })
+      setShowSubmitDialog(false)
+      toast({ title: '申請を提出しました' })
+      router.push(`/applications/${pendingSubmitId}`)
+    } catch (error) {
+      toast({
+        title: '提出に失敗しました',
+        description: error instanceof Error ? error.message : '予期せぬエラーが発生しました',
+        variant: 'destructive',
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">新規経費申請</h1>
       <ApplicationForm
         onSave={handleSave}
+        onSubmit={handleSubmitRequest}
         isSaving={createMutation.isPending}
+        isSubmitting={submitMutation.isPending}
+      />
+      <SubmitDialog
+        open={showSubmitDialog}
+        onOpenChange={setShowSubmitDialog}
+        onConfirm={handleConfirmSubmit}
+        isSubmitting={submitMutation.isPending}
       />
     </div>
   )

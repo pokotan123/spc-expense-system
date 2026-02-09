@@ -2,6 +2,7 @@
 
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -15,9 +16,11 @@ interface ApplicationFormProps {
   readonly defaultValues?: Partial<ApplicationFormValues>
   readonly receipts?: readonly Receipt[]
   readonly onSave: (values: ApplicationFormValues) => void
+  readonly onSubmit?: (values: ApplicationFormValues) => void
   readonly onUploadReceipt?: (file: File) => void
   readonly onRemoveReceipt?: (receiptId: string) => void
   readonly isSaving: boolean
+  readonly isSubmitting?: boolean
   readonly isUploading?: boolean
 }
 
@@ -25,9 +28,11 @@ export function ApplicationForm({
   defaultValues,
   receipts = [],
   onSave,
+  onSubmit,
   onUploadReceipt,
   onRemoveReceipt,
   isSaving,
+  isSubmitting = false,
   isUploading = false,
 }: ApplicationFormProps) {
   const {
@@ -48,6 +53,8 @@ export function ApplicationForm({
   })
 
   const isCashPayment = watch('isCashPayment')
+  const descriptionValue = watch('description')
+  const descriptionLength = descriptionValue?.length ?? 0
 
   return (
     <form onSubmit={handleSubmit(onSave)} className="space-y-6">
@@ -81,18 +88,24 @@ export function ApplicationForm({
 
             <div className="space-y-2">
               <Label htmlFor="amount">金額（円）</Label>
-              <Input
-                id="amount"
-                type="number"
-                min={1}
-                step={1}
-                placeholder="0"
-                aria-describedby={
-                  errors.amount ? 'amount-error' : undefined
-                }
-                aria-invalid={errors.amount ? 'true' : undefined}
-                {...register('amount', { valueAsNumber: true })}
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  ¥
+                </span>
+                <Input
+                  id="amount"
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder="0"
+                  className="pl-7"
+                  aria-describedby={
+                    errors.amount ? 'amount-error' : undefined
+                  }
+                  aria-invalid={errors.amount ? 'true' : undefined}
+                  {...register('amount', { valueAsNumber: true })}
+                />
+              </div>
               {errors.amount ? (
                 <p
                   id="amount-error"
@@ -106,7 +119,18 @@ export function ApplicationForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">摘要</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="description">摘要</Label>
+              <span
+                className={`text-xs ${
+                  descriptionLength > 500
+                    ? 'text-destructive'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                {descriptionLength} / 500
+              </span>
+            </div>
             <Textarea
               id="description"
               placeholder="経費の内容を入力してください"
@@ -159,10 +183,29 @@ export function ApplicationForm({
         </Card>
       ) : null}
 
-      <div className="flex gap-3">
-        <Button type="submit" disabled={isSaving}>
-          {isSaving ? '保存中...' : '下書き保存'}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Button
+          type="submit"
+          variant="outline"
+          disabled={isSaving || isSubmitting}
+        >
+          {isSaving ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : null}
+          下書き保存
         </Button>
+        {onSubmit ? (
+          <Button
+            type="button"
+            onClick={handleSubmit(onSubmit)}
+            disabled={isSaving || isSubmitting}
+          >
+            {isSubmitting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+            申請する
+          </Button>
+        ) : null}
       </div>
     </form>
   )
