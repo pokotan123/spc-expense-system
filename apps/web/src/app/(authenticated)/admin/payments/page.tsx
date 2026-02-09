@@ -191,7 +191,7 @@ export default function AdminPaymentsPage() {
           {isLoading ? (
             <TableSkeleton />
           ) : applications && applications.length > 0 ? (
-            <div className="rounded-md border">
+            <div className="overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>

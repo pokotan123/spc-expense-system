@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppShell } from '@/components/layout/app-shell'
+import { ErrorBoundary } from '@/components/error-boundary'
 import { useAuthStore } from '@/stores/auth-store'
 
 export default function AuthenticatedLayout({
@@ -23,5 +24,9 @@ export default function AuthenticatedLayout({
     return null
   }
 
-  return <AppShell>{children}</AppShell>
+  return (
+    <AppShell>
+      <ErrorBoundary>{children}</ErrorBoundary>
+    </AppShell>
+  )
 }

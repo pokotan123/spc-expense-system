@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema=packages/db/prisma/schema.prisma
+
+      - name: Build shared package
+        run: npm run build --workspace=packages/shared
+
+      - name: Build db package
+        run: npm run build --workspace=packages/db
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type Check
+        run: npm run type-check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema=packages/db/prisma/schema.prisma
+
+      - name: Build shared package
+        run: npm run build --workspace=packages/shared
+
+      - name: Build db package
+        run: npm run build --workspace=packages/db
+
+      - name: Run tests
+        run: npm run test
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          JWT_SECRET: ci-test-jwt-secret-must-be-at-least-32-chars
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-must-be-at-least-32-chars
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema=packages/db/prisma/schema.prisma
+
+      - name: Build all packages
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://build:build@localhost:5432/build
+          JWT_SECRET: ci-build-jwt-secret-must-be-at-least-32-chars
+          JWT_REFRESH_SECRET: ci-build-refresh-secret-must-be-at-least-32-chars
+          NEXT_PUBLIC_API_URL: http://localhost:3001

@@ -223,21 +223,21 @@ export default function ApplicationDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/applications" aria-label="一覧に戻る">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <Button variant="ghost" size="icon" asChild className="shrink-0">
+            <Link href="/applications" aria-label="一覧に戻る">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div className="flex items-center gap-3 min-w-0">
+            <h1 className="truncate text-xl font-bold sm:text-2xl">
               {application.applicationNumber}
             </h1>
             <StatusBadge status={application.status} />
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           {canEdit ? (
             <Button variant="outline" size="sm" asChild>
               <Link href={`/applications/${id}/edit`}>

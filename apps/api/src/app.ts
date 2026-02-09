@@ -4,6 +4,8 @@ import { logger } from 'hono/logger'
 import type { Variables } from './types.js'
 import { loadEnv } from './config/env.js'
 import { errorHandler } from './middleware/error-handler.js'
+import { securityHeaders } from './middleware/security-headers.js'
+import { rateLimit } from './middleware/rate-limit.js'
 import { authMiddleware } from './middleware/auth.js'
 import { createAuthService } from './services/auth-service.js'
 import { createApplicationService } from './services/application-service.js'
@@ -26,6 +28,7 @@ export function createApp() {
 
   // Global middleware
   app.use('*', logger())
+  app.use('*', securityHeaders())
   app.use(
     '*',
     cors({
@@ -33,6 +36,10 @@ export function createApp() {
       credentials: true,
     }),
   )
+
+  // Rate limiting: stricter for auth endpoints, general for API
+  app.use('/api/auth/*', rateLimit({ windowMs: 60 * 1000, maxRequests: 10 }))
+  app.use('/api/*', rateLimit({ windowMs: 60 * 1000, maxRequests: 100 }))
 
   // Global error handler
   app.onError(errorHandler)
