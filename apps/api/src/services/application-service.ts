@@ -225,7 +225,17 @@ export function createApplicationService() {
       )
     }
 
-    await prisma.expenseApplication.delete({ where: { id } })
+    // Cascade delete: OCR results -> receipts -> comments -> application
+    await prisma.$transaction([
+      prisma.ocrResult.deleteMany({
+        where: { receipt: { expenseApplicationId: id } },
+      }),
+      prisma.receipt.deleteMany({ where: { expenseApplicationId: id } }),
+      prisma.applicationComment.deleteMany({
+        where: { expenseApplicationId: id },
+      }),
+      prisma.expenseApplication.delete({ where: { id } }),
+    ])
   }
 
   async function submit(id: string, memberId: string) {

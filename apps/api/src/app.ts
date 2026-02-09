@@ -8,10 +8,12 @@ import { authMiddleware } from './middleware/auth.js'
 import { createAuthService } from './services/auth-service.js'
 import { createApplicationService } from './services/application-service.js'
 import { createReceiptService } from './services/receipt-service.js'
+import { createOcrService } from './services/ocr-service.js'
 import { createStorageService } from './services/storage-service.js'
 import { requireAdmin } from './middleware/rbac.js'
 import { createAuthRoutes } from './routes/auth.js'
 import { createApplicationRoutes } from './routes/applications.js'
+import { createReceiptRoutes } from './routes/receipts.js'
 import { createAdminApplicationRoutes } from './routes/admin-applications.js'
 import { createAdminCategoryRoutes } from './routes/admin-categories.js'
 import { createAdminPaymentRoutes } from './routes/admin-payments.js'
@@ -54,6 +56,7 @@ export function createApp() {
   const storageService = createStorageService(env)
   const applicationService = createApplicationService()
   const receiptService = createReceiptService(storageService)
+  const ocrService = createOcrService()
 
   // Auth middleware factory (for protected routes)
   const authMw = authMiddleware(env.JWT_SECRET)
@@ -65,6 +68,10 @@ export function createApp() {
   app.route(
     '/api/applications',
     createApplicationRoutes(applicationService, receiptService, authMw),
+  )
+  app.route(
+    '/api/receipts',
+    createReceiptRoutes(receiptService, ocrService, authMw),
   )
 
   // Admin routes
