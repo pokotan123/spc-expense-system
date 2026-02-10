@@ -27,25 +27,36 @@ interface StatCardProps {
   readonly amount: number
   readonly icon: React.ElementType
   readonly iconColor: string
+  readonly href?: string
 }
 
-function StatCard({ title, count, amount, icon: Icon, iconColor }: StatCardProps) {
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-4 p-6">
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${iconColor}`}>
-          <Icon className="h-6 w-6" />
-        </div>
-        <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="text-2xl font-bold">{count}件</p>
-          <p className="text-sm text-muted-foreground">
-            {formatCurrency(amount)}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+function StatCard({ title, count, amount, icon: Icon, iconColor, href }: StatCardProps) {
+  const content = (
+    <CardContent className="flex items-center gap-4 p-6">
+      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${iconColor}`}>
+        <Icon className="h-6 w-6" />
+      </div>
+      <div>
+        <p className="text-sm text-muted-foreground">{title}</p>
+        <p className="text-2xl font-bold">{count}件</p>
+        <p className="text-sm text-muted-foreground">
+          {formatCurrency(amount)}
+        </p>
+      </div>
+    </CardContent>
   )
+
+  if (href) {
+    return (
+      <Link href={href} className="block">
+        <Card className="transition-shadow hover:shadow-md">
+          {content}
+        </Card>
+      </Link>
+    )
+  }
+
+  return <Card>{content}</Card>
 }
 
 function StatsSkeleton() {
@@ -105,6 +116,7 @@ export default function DashboardPage() {
             amount={stats.totalAmount}
             icon={FileText}
             iconColor="bg-blue-50 text-blue-600"
+            href="/applications"
           />
           <StatCard
             title="申請中"
@@ -112,6 +124,7 @@ export default function DashboardPage() {
             amount={stats.pendingAmount}
             icon={Clock}
             iconColor="bg-yellow-50 text-yellow-600"
+            href="/applications?status=SUBMITTED"
           />
           <StatCard
             title="承認済"
@@ -119,6 +132,7 @@ export default function DashboardPage() {
             amount={stats.approvedAmount}
             icon={CheckCircle}
             iconColor="bg-green-50 text-green-600"
+            href="/applications?status=APPROVED"
           />
           <StatCard
             title="却下"
@@ -126,6 +140,7 @@ export default function DashboardPage() {
             amount={stats.rejectedAmount}
             icon={XCircle}
             iconColor="bg-red-50 text-red-600"
+            href="/applications?status=REJECTED"
           />
         </div>
       ) : null}
@@ -168,9 +183,14 @@ export default function DashboardPage() {
               ))}
             </ul>
           ) : (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              申請はまだありません
-            </p>
+            <div className="flex flex-col items-center gap-4 py-8">
+              <p className="text-sm text-muted-foreground">
+                申請はまだありません
+              </p>
+              <Button asChild size="sm">
+                <Link href="/applications/new">最初の申請を作成する</Link>
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Search, SlidersHorizontal } from 'lucide-react'
+import { useDebounce } from '@/hooks/use-debounce'
 import {
   Card,
   CardContent,
@@ -64,19 +65,20 @@ function TableSkeleton() {
 
 export default function AdminApplicationsPage() {
   const [page, setPage] = useState(1)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState<ApplicationStatus[]>([])
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [sortField, setSortField] = useState<SortField>('submittedAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [showFilters, setShowFilters] = useState(false)
+  const debouncedSearch = useDebounce(searchInput, 300)
 
-  const { data, isLoading } = useAdminApplicationList({
+  const { data, isLoading, error } = useAdminApplicationList({
     page,
     limit: PAGINATION.DEFAULT_LIMIT,
     status: selectedStatuses.length > 0 ? selectedStatuses : undefined,
-    search: searchQuery || undefined,
+    search: debouncedSearch || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     sort: sortField,
@@ -111,13 +113,13 @@ export default function AdminApplicationsPage() {
     setSelectedStatuses([])
     setDateFrom('')
     setDateTo('')
-    setSearchQuery('')
+    setSearchInput('')
     setPage(1)
   }
 
   const totalPages = data?.totalPages ?? 1
   const hasActiveFilters =
-    selectedStatuses.length > 0 || dateFrom || dateTo || searchQuery
+    selectedStatuses.length > 0 || dateFrom || dateTo || searchInput
 
   return (
     <div className="space-y-6">
@@ -132,9 +134,9 @@ export default function AdminApplicationsPage() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="会員名・摘要で検索..."
-                  value={searchQuery}
+                  value={searchInput}
                   onChange={(e) => {
-                    setSearchQuery(e.target.value)
+                    setSearchInput(e.target.value)
                     setPage(1)
                   }}
                   className="pl-9"
@@ -242,7 +244,13 @@ export default function AdminApplicationsPage() {
             </div>
           ) : null}
 
-          {isLoading ? (
+          {error ? (
+            <div className="rounded-md bg-destructive/10 p-4 text-center">
+              <p className="text-sm text-destructive">
+                {error instanceof Error ? error.message : 'データの取得に失敗しました'}
+              </p>
+            </div>
+          ) : isLoading ? (
             <TableSkeleton />
           ) : data && data.items.length > 0 ? (
             <>
@@ -250,11 +258,11 @@ export default function AdminApplicationsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>申請番号</TableHead>
-                      <TableHead>会員名</TableHead>
-                      <TableHead>ステータス</TableHead>
-                      <TableHead>摘要</TableHead>
-                      <TableHead>
+                      <TableHead scope="col">申請番号</TableHead>
+                      <TableHead scope="col">会員名</TableHead>
+                      <TableHead scope="col">ステータス</TableHead>
+                      <TableHead scope="col">摘要</TableHead>
+                      <TableHead scope="col">
                         <button
                           type="button"
                           onClick={() => handleSort('expenseDate')}
@@ -263,7 +271,7 @@ export default function AdminApplicationsPage() {
                           経費日{getSortIndicator('expenseDate')}
                         </button>
                       </TableHead>
-                      <TableHead className="text-right">
+                      <TableHead scope="col" className="text-right">
                         <button
                           type="button"
                           onClick={() => handleSort('amount')}
@@ -272,7 +280,7 @@ export default function AdminApplicationsPage() {
                           金額{getSortIndicator('amount')}
                         </button>
                       </TableHead>
-                      <TableHead>操作</TableHead>
+                      <TableHead scope="col">操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -310,7 +318,7 @@ export default function AdminApplicationsPage() {
                   {data.total}件中 {(page - 1) * PAGINATION.DEFAULT_LIMIT + 1}
                   -{Math.min(page * PAGINATION.DEFAULT_LIMIT, data.total)}件
                 </p>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -319,6 +327,9 @@ export default function AdminApplicationsPage() {
                   >
                     前へ
                   </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {page} / {totalPages}
+                  </span>
                   <Button
                     variant="outline"
                     size="sm"

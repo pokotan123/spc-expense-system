@@ -13,6 +13,17 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { useAuthStore } from '@/stores/auth-store'
 import { MEMBER_ROLES } from '@/lib/constants'
 
@@ -60,7 +71,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       <div className="flex flex-1 flex-col gap-1">
         {memberNavItems.map((item) => {
           const Icon = item.icon
-          const isActive = pathname === item.href
+          const isActive = item.href === '/dashboard'
+            ? pathname === item.href
+            : pathname.startsWith(item.href)
           return (
             <Link
               key={item.href}
@@ -90,7 +103,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             </div>
             {adminNavItems.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href
+              const isActive = item.href === '/dashboard'
+                ? pathname === item.href
+                : pathname.startsWith(item.href)
               return (
                 <Link
                   key={item.href}
@@ -115,14 +130,31 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
       <Separator className="my-2" />
 
-      <Button
-        variant="ghost"
-        className="justify-start gap-3 text-muted-foreground"
-        onClick={handleLogout}
-      >
-        <LogOut className="h-4 w-4" />
-        ログアウト
-      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            className="justify-start gap-3 text-muted-foreground"
+          >
+            <LogOut className="h-4 w-4" />
+            ログアウト
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ログアウト</AlertDialogTitle>
+            <AlertDialogDescription>
+              ログアウトしますか？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout}>
+              ログアウト
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </nav>
   )
 }

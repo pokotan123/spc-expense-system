@@ -55,9 +55,9 @@ apiClient.interceptors.response.use(
     }
 
     const isUnauthorized = error.response?.status === 401
-    const isRefreshRequest = originalRequest.url?.includes('/auth/refresh')
+    const isAuthRequest = originalRequest.url?.includes('/auth/')
 
-    if (isUnauthorized && !isRefreshRequest) {
+    if (isUnauthorized && !isAuthRequest) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue = [...failedQueue, { resolve, reject }]

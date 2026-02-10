@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiGet, apiPost, apiClient } from '@/lib/api-client'
+import { transformApplication } from '@/hooks/use-applications'
 import type {
   ExpenseApplication,
   PaginatedResponse,
@@ -39,7 +40,7 @@ export function useAdminApplicationList(filters: AdminApplicationFilters = {}) {
 
   return useQuery({
     queryKey: adminKeys.applicationList({ page, limit, ...rest }),
-    queryFn: async () => {
+    queryFn: async (): Promise<PaginatedResponse<ExpenseApplication>> => {
       const searchParams = new URLSearchParams()
       searchParams.set('page', String(page))
       searchParams.set('limit', String(limit))
@@ -57,13 +58,21 @@ export function useAdminApplicationList(filters: AdminApplicationFilters = {}) {
       if (rest.sort) searchParams.set('sort', rest.sort)
       if (rest.order) searchParams.set('order', rest.order)
 
-      const response = await apiGet<PaginatedResponse<ExpenseApplication>>(
-        `/admin/applications?${searchParams.toString()}`,
-      )
-      if (!response.success || !response.data) {
-        throw new Error(response.error ?? '申請一覧の取得に失敗しました')
+      const raw = await apiClient.get(`/admin/applications?${searchParams.toString()}`)
+      const body = raw.data as { success: boolean; data?: unknown[]; meta?: { total: number; page: number; limit: number; totalPages: number }; error?: string }
+      if (!body.success) {
+        throw new Error(body.error ?? '申請一覧の取得に失敗しました')
       }
-      return response.data
+      const items = (body.data ?? []).map((item: unknown) =>
+        transformApplication(item as never),
+      )
+      return {
+        items,
+        total: body.meta?.total ?? 0,
+        page: body.meta?.page ?? 1,
+        limit: body.meta?.limit ?? 20,
+        totalPages: body.meta?.totalPages ?? 1,
+      }
     },
   })
 }
@@ -72,13 +81,12 @@ export function useAdminApplicationDetail(id: string) {
   return useQuery({
     queryKey: adminKeys.applicationDetail(id),
     queryFn: async () => {
-      const response = await apiGet<ExpenseApplication>(
-        `/admin/applications/${id}`,
-      )
-      if (!response.success || !response.data) {
-        throw new Error(response.error ?? '申請の取得に失敗しました')
+      const raw = await apiClient.get(`/admin/applications/${id}`)
+      const body = raw.data as { success: boolean; data?: Record<string, unknown>; error?: string }
+      if (!body.success || !body.data) {
+        throw new Error(body.error ?? '申請の取得に失敗しました')
       }
-      return response.data
+      return transformApplication(body.data as never)
     },
     enabled: Boolean(id),
   })

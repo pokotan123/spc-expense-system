@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { MemberRole } from '@/lib/constants'
 
 interface AuthData {
@@ -18,23 +19,33 @@ interface AuthState {
   readonly clearAuth: () => void
 }
 
-const initialState = {
-  accessToken: null,
-  memberId: null,
-  memberName: null,
-  role: null,
-  isAuthenticated: false,
-} as const
-
-export const useAuthStore = create<AuthState>()((set) => ({
-  ...initialState,
-  setAuth: (data: AuthData) =>
-    set({
-      accessToken: data.accessToken,
-      memberId: data.memberId,
-      memberName: data.memberName,
-      role: data.role,
-      isAuthenticated: true,
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      accessToken: null,
+      memberId: null,
+      memberName: null,
+      role: null,
+      isAuthenticated: false,
+      setAuth: (data: AuthData) =>
+        set({
+          accessToken: data.accessToken,
+          memberId: data.memberId,
+          memberName: data.memberName,
+          role: data.role,
+          isAuthenticated: true,
+        }),
+      clearAuth: () =>
+        set({
+          accessToken: null,
+          memberId: null,
+          memberName: null,
+          role: null,
+          isAuthenticated: false,
+        }),
     }),
-  clearAuth: () => set({ ...initialState }),
-}))
+    {
+      name: 'spc-auth',
+    },
+  ),
+)

@@ -125,11 +125,22 @@ export default function EditApplicationPage({
     )
   }
 
+  const returnComment = application.comments
+    ?.filter((c) => c.commentType === 'RETURN')
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    [0]?.comment ?? null
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">
         申請編集 - {application.applicationNumber}
       </h1>
+      {application.status === 'RETURNED' && returnComment ? (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+          <p className="text-sm font-medium text-orange-800">差戻し理由</p>
+          <p className="mt-1 text-sm text-orange-700">{returnComment}</p>
+        </div>
+      ) : null}
       <ApplicationForm
         defaultValues={{
           expenseDate: application.expenseDate.split('T')[0] ?? '',

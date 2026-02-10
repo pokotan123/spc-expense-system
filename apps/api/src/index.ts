@@ -1,3 +1,7 @@
+import { config } from 'dotenv'
+import { resolve } from 'path'
+
+config({ path: resolve(import.meta.dirname, '../../../.env') })
 import { serve } from '@hono/node-server'
 import { createApp } from './app.js'
 

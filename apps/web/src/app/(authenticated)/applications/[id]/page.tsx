@@ -26,6 +26,17 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { StatusBadge } from '@/components/application/status-badge'
 import { SubmitDialog } from '@/components/application/submit-dialog'
 import { CommentTimeline } from '@/components/application/comment-timeline'
@@ -110,28 +121,38 @@ function ReceiptGallery({
                 {formatFileSize(receipt.fileSize)}
               </p>
 
-              {receipt.ocrResult &&
-              receipt.ocrResult.status === 'COMPLETED' ? (
-                <div className="mt-2 space-y-1 rounded-md bg-muted/50 p-2">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    OCR結果
-                  </p>
-                  {receipt.ocrResult.extractedStoreName ? (
-                    <p className="text-xs">
-                      店名: {receipt.ocrResult.extractedStoreName}
+              {receipt.ocrResult ? (
+                receipt.ocrResult.status === 'COMPLETED' ? (
+                  <div className="mt-2 space-y-1 rounded-md bg-muted/50 p-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      OCR結果
                     </p>
-                  ) : null}
-                  {receipt.ocrResult.extractedDate ? (
-                    <p className="text-xs">
-                      日付: {receipt.ocrResult.extractedDate}
-                    </p>
-                  ) : null}
-                  {receipt.ocrResult.extractedAmount ? (
-                    <p className="text-xs">
-                      金額: {receipt.ocrResult.extractedAmount}
-                    </p>
-                  ) : null}
-                </div>
+                    {receipt.ocrResult.extractedStoreName ? (
+                      <p className="text-xs">
+                        店名: {receipt.ocrResult.extractedStoreName}
+                      </p>
+                    ) : null}
+                    {receipt.ocrResult.extractedDate ? (
+                      <p className="text-xs">
+                        日付: {receipt.ocrResult.extractedDate}
+                      </p>
+                    ) : null}
+                    {receipt.ocrResult.extractedAmount ? (
+                      <p className="text-xs">
+                        金額: {receipt.ocrResult.extractedAmount}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : receipt.ocrResult.status === 'PROCESSING' ? (
+                  <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/50 p-2">
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <p className="text-xs text-muted-foreground">OCR処理中...</p>
+                  </div>
+                ) : receipt.ocrResult.status === 'FAILED' ? (
+                  <div className="mt-2 rounded-md bg-destructive/10 p-2">
+                    <p className="text-xs text-destructive">OCR読み取りに失敗しました。手動で入力してください。</p>
+                  </div>
+                ) : null
               ) : null}
             </div>
           )
@@ -253,15 +274,35 @@ export default function ApplicationDetailPage({
             </Button>
           ) : null}
           {canDelete ? (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-              disabled={deleteMutation.isPending}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              削除
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  削除
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>申請の削除</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    この申請を削除しますか？この操作は取り消せません。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    削除する
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ) : null}
         </div>
       </div>
@@ -351,7 +392,7 @@ export default function ApplicationDetailPage({
               <CardTitle className="text-lg">領収書</CardTitle>
             </CardHeader>
             <CardContent>
-              <ReceiptGallery receipts={application.receipts} />
+              <ReceiptGallery receipts={application.receipts ?? []} />
             </CardContent>
           </Card>
         </div>
@@ -362,7 +403,7 @@ export default function ApplicationDetailPage({
               <CardTitle className="text-lg">コメント履歴</CardTitle>
             </CardHeader>
             <CardContent>
-              <CommentTimeline comments={application.comments} />
+              <CommentTimeline comments={application.comments ?? []} />
             </CardContent>
           </Card>
         </div>

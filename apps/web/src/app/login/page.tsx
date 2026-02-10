@@ -24,11 +24,16 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>
 
 interface LoginResponse {
-  readonly accessToken: string
+  readonly access_token: string
+  readonly refresh_token: string
+  readonly token_type: string
   readonly member: {
     readonly id: string
+    readonly memberId: string
     readonly name: string
+    readonly email: string
     readonly role: 'MEMBER' | 'ADMIN'
+    readonly departmentId: string | null
   }
 }
 
@@ -54,14 +59,14 @@ export default function LoginPage() {
 
     try {
       const response = await apiPost<LoginResponse>('/auth/login', {
-        memberId: values.memberId,
+        member_id: values.memberId,
         password: values.password,
       })
 
       if (response.success && response.data) {
         setAuth({
-          accessToken: response.data.accessToken,
-          memberId: response.data.member.id,
+          accessToken: response.data.access_token,
+          memberId: response.data.member.memberId,
           memberName: response.data.member.name,
           role: response.data.member.role,
         })
@@ -95,6 +100,7 @@ export default function LoginPage() {
                 type="text"
                 placeholder="会員IDを入力"
                 autoComplete="username"
+                required
                 aria-describedby={
                   errors.memberId ? 'memberId-error' : undefined
                 }
@@ -119,6 +125,7 @@ export default function LoginPage() {
                 type="password"
                 placeholder="パスワードを入力"
                 autoComplete="current-password"
+                required
                 aria-describedby={
                   errors.password ? 'password-error' : undefined
                 }
@@ -153,6 +160,9 @@ export default function LoginPage() {
               {isSubmitting ? 'ログイン中...' : 'ログイン'}
             </Button>
           </form>
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            パスワードをお忘れの方は事務局までお問い合わせください
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Plus, Search } from 'lucide-react'
+import { useDebounce } from '@/hooks/use-debounce'
 import {
   Card,
   CardContent,
@@ -60,14 +61,15 @@ function TableSkeleton() {
 
 export default function ApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
+  const debouncedSearch = useDebounce(searchInput, 300)
 
   const { data, isLoading } = useApplicationList({
     page,
     limit: PAGINATION.DEFAULT_LIMIT,
     status: statusFilter,
-    search: searchQuery || undefined,
+    search: debouncedSearch || undefined,
   })
 
   function handleStatusChange(value: string) {
@@ -76,7 +78,7 @@ export default function ApplicationsPage() {
   }
 
   function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setSearchQuery(e.target.value)
+    setSearchInput(e.target.value)
     setPage(1)
   }
 
@@ -102,7 +104,7 @@ export default function ApplicationsPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="摘要で検索..."
-                value={searchQuery}
+                value={searchInput}
                 onChange={handleSearchChange}
                 className="pl-9"
                 aria-label="申請を検索"
@@ -129,11 +131,11 @@ export default function ApplicationsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>申請番号</TableHead>
-                      <TableHead>ステータス</TableHead>
-                      <TableHead>摘要</TableHead>
-                      <TableHead>経費日</TableHead>
-                      <TableHead className="text-right">金額</TableHead>
+                      <TableHead scope="col">申請番号</TableHead>
+                      <TableHead scope="col">ステータス</TableHead>
+                      <TableHead scope="col">摘要</TableHead>
+                      <TableHead scope="col">経費日</TableHead>
+                      <TableHead scope="col" className="text-right">金額</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -168,7 +170,7 @@ export default function ApplicationsPage() {
                   {data.total}件中 {(page - 1) * PAGINATION.DEFAULT_LIMIT + 1}-
                   {Math.min(page * PAGINATION.DEFAULT_LIMIT, data.total)}件
                 </p>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -177,6 +179,9 @@ export default function ApplicationsPage() {
                   >
                     前へ
                   </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {page} / {totalPages}
+                  </span>
                   <Button
                     variant="outline"
                     size="sm"
@@ -189,9 +194,19 @@ export default function ApplicationsPage() {
               </div>
             </>
           ) : (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              該当する申請はありません
-            </p>
+            <div className="flex flex-col items-center gap-4 py-12">
+              <p className="text-sm text-muted-foreground">
+                該当する申請はありません
+              </p>
+              {statusFilter === 'ALL' && !debouncedSearch ? (
+                <Button asChild size="sm">
+                  <Link href="/applications/new">
+                    <Plus className="mr-2 h-4 w-4" />
+                    新規申請を作成
+                  </Link>
+                </Button>
+              ) : null}
+            </div>
           )}
         </CardContent>
       </Card>

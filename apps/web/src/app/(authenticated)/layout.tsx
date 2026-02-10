@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppShell } from '@/components/layout/app-shell'
 import { ErrorBoundary } from '@/components/error-boundary'
@@ -12,13 +12,26 @@ export default function AuthenticatedLayout({
   readonly children: React.ReactNode
 }) {
   const router = useRouter()
+  const [hydrated, setHydrated] = useState(false)
   const { isAuthenticated } = useAuthStore()
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (hydrated && !isAuthenticated) {
       router.replace('/login')
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, hydrated, router])
+
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-muted-foreground">読み込み中...</div>
+      </div>
+    )
+  }
 
   if (!isAuthenticated) {
     return null

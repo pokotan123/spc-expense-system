@@ -19,6 +19,7 @@
     "@spc/db": "*",
     "@spc/shared": "*",
     "bcryptjs": "^2.4.3",
+    "dotenv": "^16.6.1",
     "hono": "^4.6.0",
     "iconv-lite": "^0.7.2",
     "jose": "^5.9.0",

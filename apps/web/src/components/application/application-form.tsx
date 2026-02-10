@@ -2,14 +2,16 @@
 
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ReceiptUpload } from '@/components/application/receipt-upload'
 import { applicationFormSchema, type ApplicationFormValues } from '@/lib/validations'
+import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
 import type { Receipt } from '@/lib/types'
 
 interface ApplicationFormProps {
@@ -17,6 +19,7 @@ interface ApplicationFormProps {
   readonly receipts?: readonly Receipt[]
   readonly onSave: (values: ApplicationFormValues) => void
   readonly onSubmit?: (values: ApplicationFormValues) => void
+  readonly onCancel?: () => void
   readonly onUploadReceipt?: (file: File) => void
   readonly onRemoveReceipt?: (receiptId: string) => void
   readonly isSaving: boolean
@@ -29,6 +32,7 @@ export function ApplicationForm({
   receipts = [],
   onSave,
   onSubmit,
+  onCancel,
   onUploadReceipt,
   onRemoveReceipt,
   isSaving,
@@ -40,7 +44,7 @@ export function ApplicationForm({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationFormSchema),
     defaultValues: {
@@ -52,12 +56,14 @@ export function ApplicationForm({
     },
   })
 
+  useUnsavedChanges(isDirty)
+
   const isCashPayment = watch('isCashPayment')
   const descriptionValue = watch('description')
   const descriptionLength = descriptionValue?.length ?? 0
 
   return (
-    <form onSubmit={handleSubmit(onSave)} className="space-y-6">
+    <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">申請内容</CardTitle>
@@ -152,13 +158,13 @@ export function ApplicationForm({
             ) : null}
           </div>
 
-          <div className="flex items-center gap-3">
-            <input
+          <div className="flex items-center space-x-2">
+            <Checkbox
               id="isCashPayment"
-              type="checkbox"
-              className="h-4 w-4 rounded border-gray-300"
               checked={isCashPayment}
-              onChange={(e) => setValue('isCashPayment', e.target.checked)}
+              onCheckedChange={(checked) =>
+                setValue('isCashPayment', checked === true)
+              }
             />
             <Label htmlFor="isCashPayment" className="cursor-pointer">
               現金立替払い
@@ -181,12 +187,40 @@ export function ApplicationForm({
             />
           </CardContent>
         </Card>
-      ) : null}
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">領収書</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 text-center">
+              <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                下書き保存後に領収書を添付できます
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                JPEG, PNG, WebP, PDF（最大10MB）
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
+        {onCancel ? (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCancel}
+            disabled={isSaving || isSubmitting}
+          >
+            キャンセル
+          </Button>
+        ) : null}
         <Button
-          type="submit"
+          type="button"
           variant="outline"
+          onClick={handleSubmit(onSave)}
           disabled={isSaving || isSubmitting}
         >
           {isSaving ? (

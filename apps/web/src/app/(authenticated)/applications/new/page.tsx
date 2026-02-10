@@ -1,7 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { ApplicationForm } from '@/components/application/application-form'
 import { SubmitDialog } from '@/components/application/submit-dialog'
 import { useCreateApplication, useSubmitApplication } from '@/hooks/use-applications'
@@ -77,10 +80,18 @@ export default function NewApplicationPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">新規経費申請</h1>
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" asChild className="shrink-0">
+          <Link href="/applications" aria-label="一覧に戻る">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+        </Button>
+        <h1 className="text-2xl font-bold">新規経費申請</h1>
+      </div>
       <ApplicationForm
         onSave={handleSave}
         onSubmit={handleSubmitRequest}
+        onCancel={() => router.push('/applications')}
         isSaving={createMutation.isPending}
         isSubmitting={submitMutation.isPending}
       />

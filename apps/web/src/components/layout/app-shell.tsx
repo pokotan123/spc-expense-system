@@ -38,7 +38,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onMenuToggle={handleMenuToggle} />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        <main id="main-content" className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>
   )

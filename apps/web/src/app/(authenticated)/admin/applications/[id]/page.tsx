@@ -108,19 +108,30 @@ function ReceiptViewer({ receipts }: { readonly receipts: readonly Receipt[] }) 
               <p className="text-xs text-muted-foreground">
                 {formatFileSize(receipt.fileSize)}
               </p>
-              {receipt.ocrResult?.status === 'COMPLETED' ? (
-                <div className="mt-2 space-y-1 rounded-md bg-muted/50 p-2">
-                  <p className="text-xs font-medium text-muted-foreground">OCR結果</p>
-                  {receipt.ocrResult.extractedStoreName ? (
-                    <p className="text-xs">店名: {receipt.ocrResult.extractedStoreName}</p>
-                  ) : null}
-                  {receipt.ocrResult.extractedDate ? (
-                    <p className="text-xs">日付: {receipt.ocrResult.extractedDate}</p>
-                  ) : null}
-                  {receipt.ocrResult.extractedAmount ? (
-                    <p className="text-xs">金額: {receipt.ocrResult.extractedAmount}</p>
-                  ) : null}
-                </div>
+              {receipt.ocrResult ? (
+                receipt.ocrResult.status === 'COMPLETED' ? (
+                  <div className="mt-2 space-y-1 rounded-md bg-muted/50 p-2">
+                    <p className="text-xs font-medium text-muted-foreground">OCR結果</p>
+                    {receipt.ocrResult.extractedStoreName ? (
+                      <p className="text-xs">店名: {receipt.ocrResult.extractedStoreName}</p>
+                    ) : null}
+                    {receipt.ocrResult.extractedDate ? (
+                      <p className="text-xs">日付: {receipt.ocrResult.extractedDate}</p>
+                    ) : null}
+                    {receipt.ocrResult.extractedAmount ? (
+                      <p className="text-xs">金額: {receipt.ocrResult.extractedAmount}</p>
+                    ) : null}
+                  </div>
+                ) : receipt.ocrResult.status === 'PROCESSING' ? (
+                  <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/50 p-2">
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <p className="text-xs text-muted-foreground">OCR処理中...</p>
+                  </div>
+                ) : receipt.ocrResult.status === 'FAILED' ? (
+                  <div className="mt-2 rounded-md bg-destructive/10 p-2">
+                    <p className="text-xs text-destructive">OCR読み取りに失敗しました。手動で入力してください。</p>
+                  </div>
+                ) : null
               ) : null}
             </div>
           )
@@ -274,7 +285,7 @@ export default function AdminApplicationDetailPage({
           </p>
         </div>
         {isSubmitted ? (
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               variant="outline"
               size="sm"
@@ -384,7 +395,7 @@ export default function AdminApplicationDetailPage({
               <CardTitle className="text-lg">領収書</CardTitle>
             </CardHeader>
             <CardContent>
-              <ReceiptViewer receipts={application.receipts} />
+              <ReceiptViewer receipts={application.receipts ?? []} />
             </CardContent>
           </Card>
         </div>
@@ -395,7 +406,7 @@ export default function AdminApplicationDetailPage({
               <CardTitle className="text-lg">コメント履歴</CardTitle>
             </CardHeader>
             <CardContent>
-              <CommentTimeline comments={application.comments} />
+              <CommentTimeline comments={application.comments ?? []} />
             </CardContent>
           </Card>
         </div>
@@ -429,7 +440,13 @@ export default function AdminApplicationDetailPage({
                   />
                   <p className="text-xs text-muted-foreground">
                     申請金額: {formatCurrency(application.amount)}
+                    {!finalAmount ? '（空欄の場合、申請金額が確定金額になります）' : null}
                   </p>
+                  {finalAmount && Math.abs(Number(finalAmount) - application.amount) / application.amount > 0.5 ? (
+                    <p className="text-xs text-orange-600">
+                      申請金額との差異が50%以上あります。金額をご確認ください。
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 
