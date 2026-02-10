@@ -22,6 +22,7 @@ COPY packages/shared/ ./packages/shared/
 COPY packages/db/ ./packages/db/
 COPY apps/api/ ./apps/api/
 RUN npm run build --workspace=packages/shared
+RUN npm run build --workspace=packages/db
 RUN npm run build --workspace=apps/api
 
 # Production
