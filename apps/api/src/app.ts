@@ -20,6 +20,8 @@ import { createAdminApplicationRoutes } from './routes/admin-applications.js'
 import { createAdminCategoryRoutes } from './routes/admin-categories.js'
 import { createAdminPaymentRoutes } from './routes/admin-payments.js'
 import { healthRoutes } from './routes/health.js'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 export function createApp() {
   const env = loadEnv()
@@ -80,6 +82,28 @@ export function createApp() {
     '/api/receipts',
     createReceiptRoutes(receiptService, ocrService, authMw),
   )
+
+  // Local file serving (when S3 is not configured)
+  if (!env.S3_ENDPOINT) {
+    app.get('/api/uploads/*', authMw, async (c) => {
+      const key = c.req.path.replace('/api/uploads/', '')
+      try {
+        const filePath = join(process.cwd(), 'uploads', key)
+        const buffer = await readFile(filePath)
+        const ext = key.split('.').pop() ?? ''
+        const mimeMap: Record<string, string> = {
+          jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+          webp: 'image/webp', pdf: 'application/pdf',
+        }
+        return c.body(buffer, 200, {
+          'Content-Type': mimeMap[ext] ?? 'application/octet-stream',
+          'Cache-Control': 'private, max-age=3600',
+        })
+      } catch {
+        return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'File not found' } }, 404)
+      }
+    })
+  }
 
   // Admin routes
   app.route('/api/admin/applications', createAdminApplicationRoutes(authMw, adminMw))
