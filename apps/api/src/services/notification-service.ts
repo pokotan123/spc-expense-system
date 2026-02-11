@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client'
 import type { EmailClient } from '../lib/email.js'
 
-interface ApplicationInfo {
+export interface ApplicationInfo {
   readonly id: string
   readonly applicationNumber: string
   readonly amount: unknown

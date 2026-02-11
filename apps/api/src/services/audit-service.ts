@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 
 interface AuditLogEntry {
@@ -27,7 +28,7 @@ export function createAuditService() {
         entity: entry.entity,
         entityId: entry.entityId ?? null,
         memberId: entry.memberId ?? null,
-        details: entry.details ?? null,
+        details: (entry.details as Prisma.InputJsonValue) ?? undefined,
         ipAddress: entry.ipAddress ?? null,
       },
     })
