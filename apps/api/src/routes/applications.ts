@@ -5,6 +5,7 @@ import {
   paginationSchema,
   applicationFilterSchema,
   updateOcrResultSchema,
+  createCommentSchema,
   type ApiResponse,
 } from '@spc/shared'
 import type { Variables } from '../types.js'
@@ -136,6 +137,27 @@ export function createApplicationRoutes(
       data: application,
     }
     return c.json(body)
+  })
+
+  // POST /applications/:id/comments - add comment
+  routes.post('/:id/comments', async (c) => {
+    const user = getUser(c)
+    const id = c.req.param('id')
+    const raw = await c.req.json()
+    const input = createCommentSchema.parse(raw)
+
+    const created = await applicationService.addComment(
+      id,
+      user.sub,
+      input.comment,
+      input.comment_type,
+    )
+
+    const body: ApiResponse<typeof created> = {
+      success: true,
+      data: created,
+    }
+    return c.json(body, 201)
   })
 
   // POST /applications/:id/receipts - upload receipt

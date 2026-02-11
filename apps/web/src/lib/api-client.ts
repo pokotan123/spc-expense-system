@@ -9,6 +9,34 @@ export const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
+  timeout: 30000,
+})
+
+// Retry interceptor for network errors and 5xx responses
+const MAX_RETRIES = 2
+const RETRY_DELAY_BASE = 1000
+
+function isRetryableStatus(status: number | undefined): boolean {
+  return status !== undefined && (status >= 500 || status === 429)
+}
+
+apiClient.interceptors.response.use(undefined, async (error: AxiosError) => {
+  const config = error.config
+  if (!config) return Promise.reject(error)
+
+  const retryCount = ((config as unknown as Record<string, unknown>).__retryCount as number) ?? 0
+
+  const isNetworkError = !error.response && error.code !== 'ECONNABORTED'
+  const isRetryable = isNetworkError || isRetryableStatus(error.response?.status)
+
+  if (isRetryable && retryCount < MAX_RETRIES) {
+    ;(config as unknown as Record<string, unknown>).__retryCount = retryCount + 1
+    const delay = RETRY_DELAY_BASE * Math.pow(2, retryCount)
+    await new Promise((resolve) => setTimeout(resolve, delay))
+    return apiClient(config)
+  }
+
+  return Promise.reject(error)
 })
 
 apiClient.interceptors.request.use(

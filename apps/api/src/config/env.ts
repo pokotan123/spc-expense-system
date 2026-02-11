@@ -18,6 +18,13 @@ const envSchema = z.object({
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
 
+  // Resend (email notifications)
+  RESEND_API_KEY: z.string().optional(),
+  NOTIFICATION_FROM_EMAIL: z
+    .string()
+    .email()
+    .default('noreply@spc-expense.com'),
+
   // S3 / Cloudflare R2
   S3_ENDPOINT: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),

@@ -48,6 +48,18 @@ enum CommentType {
   GENERAL
 }
 
+enum NotificationType {
+  SUBMISSION
+  APPROVAL
+  RETURN
+  REJECTION
+}
+
+enum NotificationStatus {
+  SENT
+  FAILED
+}
+
 // ---------------------
 // Models
 // ---------------------
@@ -210,4 +222,35 @@ model RefreshToken {
   @@index([memberId])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // LOGIN, LOGOUT, CREATE_APPLICATION, UPDATE_APPLICATION, DELETE_APPLICATION, SUBMIT_APPLICATION, APPROVE_APPLICATION, RETURN_APPLICATION, REJECT_APPLICATION, CREATE_CATEGORY, UPDATE_CATEGORY, DELETE_CATEGORY, GENERATE_PAYMENT
+  entity    String   // Member, ExpenseApplication, InternalCategory, Payment
+  entityId  String?  @map("entity_id")
+  memberId  String?  @map("member_id")
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([action])
+  @@index([memberId])
+  @@index([entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model NotificationLog {
+  id             String             @id @default(uuid())
+  type           NotificationType
+  recipientEmail String             @map("recipient_email")
+  applicationId  String?            @map("application_id")
+  status         NotificationStatus
+  error          String?
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  @@index([applicationId])
+  @@index([createdAt])
+  @@map("notification_logs")
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiGet, apiPost, apiClient } from '@/lib/api-client'
+import { apiGet, apiPost, apiPut, apiDelete, apiClient } from '@/lib/api-client'
 import { transformApplication } from '@/hooks/use-applications'
 import type {
   ExpenseApplication,
@@ -21,6 +21,10 @@ const adminKeys = {
   paymentList: (filters: Record<string, unknown>) =>
     [...adminKeys.payments(), 'list', filters] as const,
   readyForPayment: () => [...adminKeys.payments(), 'ready'] as const,
+  categories: () => [...adminKeys.all, 'categories'] as const,
+  auditLogs: () => [...adminKeys.all, 'auditLogs'] as const,
+  auditLogList: (filters: Record<string, unknown>) =>
+    [...adminKeys.auditLogs(), 'list', filters] as const,
 }
 
 interface AdminApplicationFilters {
@@ -243,6 +247,189 @@ export function useGeneratePayment() {
       void queryClient.invalidateQueries({
         queryKey: adminKeys.payments(),
       })
+    },
+  })
+}
+
+// Category types and hooks
+interface Category {
+  readonly id: string
+  readonly name: string
+  readonly code: string
+  readonly description: string | null
+  readonly isActive: boolean
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+export function useCategoryList(includeInactive = true) {
+  return useQuery({
+    queryKey: [...adminKeys.categories(), { includeInactive }],
+    queryFn: async (): Promise<readonly Category[]> => {
+      const params = includeInactive ? '?include_inactive=true' : ''
+      const response = await apiGet<readonly Category[]>(
+        `/admin/categories${params}`,
+      )
+      if (!response.success || !response.data) {
+        throw new Error(response.error ?? 'カテゴリ一覧の取得に失敗しました')
+      }
+      return response.data
+    },
+  })
+}
+
+export function useCreateCategory() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data: {
+      readonly name: string
+      readonly code: string
+      readonly description?: string
+    }) => {
+      const response = await apiPost<Category>('/admin/categories', data)
+      if (!response.success || !response.data) {
+        throw new Error(response.error ?? 'カテゴリの作成に失敗しました')
+      }
+      return response.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: adminKeys.categories(),
+      })
+    },
+  })
+}
+
+export function useUpdateCategory() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...data
+    }: {
+      readonly id: string
+      readonly name?: string
+      readonly code?: string
+      readonly description?: string | null
+      readonly is_active?: boolean
+    }) => {
+      const response = await apiPut<Category>(`/admin/categories/${id}`, data)
+      if (!response.success || !response.data) {
+        throw new Error(response.error ?? 'カテゴリの更新に失敗しました')
+      }
+      return response.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: adminKeys.categories(),
+      })
+    },
+  })
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiDelete(`/admin/categories/${id}`)
+      if (!response.success) {
+        throw new Error(response.error ?? 'カテゴリの削除に失敗しました')
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: adminKeys.categories(),
+      })
+    },
+  })
+}
+
+export function useAdminAddComment(applicationId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      comment,
+      commentType = 'GENERAL',
+    }: {
+      readonly comment: string
+      readonly commentType?: string
+    }) => {
+      const response = await apiPost<unknown>(
+        `/applications/${applicationId}/comments`,
+        { comment, comment_type: commentType },
+      )
+      if (!response.success) {
+        throw new Error(response.error ?? 'コメントの追加に失敗しました')
+      }
+      return response.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: adminKeys.applicationDetail(applicationId),
+      })
+    },
+  })
+}
+
+// Audit log types and hooks
+interface AuditLogEntry {
+  readonly id: string
+  readonly action: string
+  readonly entity: string
+  readonly entityId: string | null
+  readonly memberId: string | null
+  readonly details: Record<string, unknown> | null
+  readonly ipAddress: string | null
+  readonly createdAt: string
+}
+
+interface AuditLogFilters {
+  readonly page?: number
+  readonly limit?: number
+  readonly action?: string
+  readonly entity?: string
+  readonly memberId?: string
+  readonly dateFrom?: string
+  readonly dateTo?: string
+}
+
+export function useAuditLogs(filters: AuditLogFilters = {}) {
+  const { page = 1, limit = 20, ...rest } = filters
+
+  return useQuery({
+    queryKey: adminKeys.auditLogList({ page, limit, ...rest }),
+    queryFn: async (): Promise<PaginatedResponse<AuditLogEntry>> => {
+      const searchParams = new URLSearchParams()
+      searchParams.set('page', String(page))
+      searchParams.set('limit', String(limit))
+
+      if (rest.action) searchParams.set('action', rest.action)
+      if (rest.entity) searchParams.set('entity', rest.entity)
+      if (rest.memberId) searchParams.set('member_id', rest.memberId)
+      if (rest.dateFrom) searchParams.set('date_from', rest.dateFrom)
+      if (rest.dateTo) searchParams.set('date_to', rest.dateTo)
+
+      const raw = await apiClient.get(`/admin/audit?${searchParams.toString()}`)
+      const body = raw.data as {
+        success: boolean
+        data?: AuditLogEntry[]
+        meta?: { total: number; page: number; limit: number; totalPages: number }
+        error?: string
+      }
+      if (!body.success) {
+        throw new Error(body.error ?? '監査ログの取得に失敗しました')
+      }
+      return {
+        items: body.data ?? [],
+        total: body.meta?.total ?? 0,
+        page: body.meta?.page ?? 1,
+        limit: body.meta?.limit ?? 20,
+        totalPages: body.meta?.totalPages ?? 1,
+      }
     },
   })
 }

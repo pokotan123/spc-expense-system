@@ -40,14 +40,18 @@ import {
 import { StatusBadge } from '@/components/application/status-badge'
 import { SubmitDialog } from '@/components/application/submit-dialog'
 import { CommentTimeline } from '@/components/application/comment-timeline'
+import { CommentForm } from '@/components/application/comment-form'
 import {
   useApplicationDetail,
   useSubmitApplication,
   useDeleteApplication,
+  useAddComment,
+  useUpdateOcrResult,
 } from '@/hooks/use-applications'
 import { useToast } from '@/components/ui/use-toast'
 import { formatCurrency, formatDate, formatDateTime, formatFileSize } from '@/lib/format'
 import { APPLICATION_STATUSES } from '@/lib/constants'
+import { OcrEditDialog } from '@/components/application/ocr-edit-dialog'
 import type { Receipt } from '@/lib/types'
 
 function DetailSkeleton() {
@@ -62,8 +66,12 @@ function DetailSkeleton() {
 
 function ReceiptGallery({
   receipts,
+  onUpdateOcr,
+  isUpdatingOcr,
 }: {
   readonly receipts: readonly Receipt[]
+  readonly onUpdateOcr?: (receiptId: string, data: Record<string, unknown>) => Promise<void>
+  readonly isUpdatingOcr?: boolean
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewName, setPreviewName] = useState('')
@@ -124,9 +132,20 @@ function ReceiptGallery({
               {receipt.ocrResult ? (
                 receipt.ocrResult.status === 'COMPLETED' ? (
                   <div className="mt-2 space-y-1 rounded-md bg-muted/50 p-2">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      OCR結果
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        OCR結果
+                      </p>
+                      {onUpdateOcr ? (
+                        <OcrEditDialog
+                          ocrResult={receipt.ocrResult}
+                          onSave={async (data) => {
+                            await onUpdateOcr(receipt.id, data)
+                          }}
+                          isPending={isUpdatingOcr ?? false}
+                        />
+                      ) : null}
+                    </div>
                     {receipt.ocrResult.extractedStoreName ? (
                       <p className="text-xs">
                         店名: {receipt.ocrResult.extractedStoreName}
@@ -191,6 +210,8 @@ export default function ApplicationDetailPage({
   const { data: application, isLoading } = useApplicationDetail(id)
   const submitMutation = useSubmitApplication()
   const deleteMutation = useDeleteApplication()
+  const addCommentMutation = useAddComment(id)
+  const updateOcrMutation = useUpdateOcrResult(id)
   const [showSubmitDialog, setShowSubmitDialog] = useState(false)
 
   async function handleSubmit(comment?: string) {
@@ -392,7 +413,17 @@ export default function ApplicationDetailPage({
               <CardTitle className="text-lg">領収書</CardTitle>
             </CardHeader>
             <CardContent>
-              <ReceiptGallery receipts={application.receipts ?? []} />
+              <ReceiptGallery
+                receipts={application.receipts ?? []}
+                onUpdateOcr={async (receiptId, data) => {
+                  await updateOcrMutation.mutateAsync({
+                    receiptId,
+                    data: data as { extracted_date?: string; extracted_amount?: number; extracted_store_name?: string },
+                  })
+                  toast({ title: 'OCR結果を更新しました' })
+                }}
+                isUpdatingOcr={updateOcrMutation.isPending}
+              />
             </CardContent>
           </Card>
         </div>
@@ -402,8 +433,19 @@ export default function ApplicationDetailPage({
             <CardHeader>
               <CardTitle className="text-lg">コメント履歴</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <CommentTimeline comments={application.comments ?? []} />
+              <Separator />
+              <CommentForm
+                onSubmit={async (commentText) => {
+                  await addCommentMutation.mutateAsync({
+                    comment: commentText,
+                    commentType: 'GENERAL',
+                  })
+                  toast({ title: 'コメントを追加しました' })
+                }}
+                isPending={addCommentMutation.isPending}
+              />
             </CardContent>
           </Card>
         </div>

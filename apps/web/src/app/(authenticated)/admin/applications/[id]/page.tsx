@@ -33,11 +33,21 @@ import {
 } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/application/status-badge'
 import { CommentTimeline } from '@/components/application/comment-timeline'
+import { CommentForm } from '@/components/application/comment-form'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   useAdminApplicationDetail,
   useApproveApplication,
   useReturnApplication,
   useRejectApplication,
+  useAdminAddComment,
+  useCategoryList,
 } from '@/hooks/use-admin'
 import { useToast } from '@/components/ui/use-toast'
 import { formatCurrency, formatDate, formatDateTime, formatFileSize } from '@/lib/format'
@@ -165,10 +175,14 @@ export default function AdminApplicationDetailPage({
   const approveMutation = useApproveApplication()
   const returnMutation = useReturnApplication()
   const rejectMutation = useRejectApplication()
+  const addCommentMutation = useAdminAddComment(id)
+
+  const { data: categories } = useCategoryList()
 
   const [actionType, setActionType] = useState<ActionType | null>(null)
   const [comment, setComment] = useState('')
   const [finalAmount, setFinalAmount] = useState('')
+  const [selectedCategoryId, setSelectedCategoryId] = useState('')
 
   const isSubmitted = application?.status === APPLICATION_STATUSES.SUBMITTED
   const isPending =
@@ -179,6 +193,7 @@ export default function AdminApplicationDetailPage({
   function openActionDialog(type: ActionType) {
     setActionType(type)
     setComment('')
+    setSelectedCategoryId('')
     if (type === 'approve' && application) {
       setFinalAmount(String(application.amount))
     }
@@ -190,8 +205,16 @@ export default function AdminApplicationDetailPage({
     try {
       switch (actionType) {
         case 'approve':
+          if (!selectedCategoryId) {
+            toast({
+              title: 'カテゴリを選択してください',
+              variant: 'destructive',
+            })
+            return
+          }
           await approveMutation.mutateAsync({
             applicationId: id,
+            internalCategoryId: selectedCategoryId,
             finalAmount: finalAmount ? Number(finalAmount) : undefined,
             comment: comment || undefined,
           })
@@ -405,8 +428,19 @@ export default function AdminApplicationDetailPage({
             <CardHeader>
               <CardTitle className="text-lg">コメント履歴</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <CommentTimeline comments={application.comments ?? []} />
+              <Separator />
+              <CommentForm
+                onSubmit={async (commentText) => {
+                  await addCommentMutation.mutateAsync({
+                    comment: commentText,
+                    commentType: 'GENERAL',
+                  })
+                  toast({ title: 'コメントを追加しました' })
+                }}
+                isPending={addCommentMutation.isPending}
+              />
             </CardContent>
           </Card>
         </div>
@@ -428,6 +462,22 @@ export default function AdminApplicationDetailPage({
 
             <div className="space-y-4">
               {actionType === 'approve' ? (
+                <>
+                <div className="space-y-2">
+                  <Label htmlFor="category">社内カテゴリ <span className="text-destructive">*</span></Label>
+                  <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                    <SelectTrigger id="category">
+                      <SelectValue placeholder="カテゴリを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(categories ?? []).map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="finalAmount">確定金額（円）</Label>
                   <Input
@@ -448,6 +498,7 @@ export default function AdminApplicationDetailPage({
                     </p>
                   ) : null}
                 </div>
+                </>
               ) : null}
 
               <div className="space-y-2">

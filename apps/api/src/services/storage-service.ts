@@ -8,6 +8,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { Env } from '../config/env.js'
+import { withRetry, isRetryableError } from '../lib/retry.js'
 
 function isS3Configured(env: Env): boolean {
   return Boolean(env.S3_ENDPOINT && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY)
@@ -65,43 +66,55 @@ function createS3StorageService(env: Env) {
     return client
   }
 
+  const retryOpts = {
+    maxRetries: 3,
+    baseDelayMs: 1000,
+    shouldRetry: isRetryableError,
+  }
+
   async function uploadFile(
     key: string,
     body: Buffer | Uint8Array,
     contentType: string,
   ): Promise<string> {
-    const s3 = getClient()
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: env.S3_BUCKET_NAME,
-        Key: key,
-        Body: body,
-        ContentType: contentType,
-      }),
-    )
-    return key
+    return withRetry(async () => {
+      const s3 = getClient()
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: env.S3_BUCKET_NAME,
+          Key: key,
+          Body: body,
+          ContentType: contentType,
+        }),
+      )
+      return key
+    }, retryOpts)
   }
 
   async function getSignedDownloadUrl(
     key: string,
     expiresIn = 3600,
   ): Promise<string> {
-    const s3 = getClient()
-    const command = new GetObjectCommand({
-      Bucket: env.S3_BUCKET_NAME,
-      Key: key,
-    })
-    return getSignedUrl(s3, command, { expiresIn })
+    return withRetry(async () => {
+      const s3 = getClient()
+      const command = new GetObjectCommand({
+        Bucket: env.S3_BUCKET_NAME,
+        Key: key,
+      })
+      return getSignedUrl(s3, command, { expiresIn })
+    }, retryOpts)
   }
 
   async function deleteFile(key: string): Promise<void> {
-    const s3 = getClient()
-    await s3.send(
-      new DeleteObjectCommand({
-        Bucket: env.S3_BUCKET_NAME,
-        Key: key,
-      }),
-    )
+    return withRetry(async () => {
+      const s3 = getClient()
+      await s3.send(
+        new DeleteObjectCommand({
+          Bucket: env.S3_BUCKET_NAME,
+          Key: key,
+        }),
+      )
+    }, retryOpts)
   }
 
   return Object.freeze({ uploadFile, getSignedDownloadUrl, deleteFile })

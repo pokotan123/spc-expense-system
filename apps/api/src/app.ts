@@ -13,12 +13,14 @@ import { createReceiptService } from './services/receipt-service.js'
 import { createOcrService } from './services/ocr-service.js'
 import { createStorageService } from './services/storage-service.js'
 import { requireAdmin } from './middleware/rbac.js'
+import { auditLogger } from './middleware/audit-logger.js'
 import { createAuthRoutes } from './routes/auth.js'
 import { createApplicationRoutes } from './routes/applications.js'
 import { createReceiptRoutes } from './routes/receipts.js'
 import { createAdminApplicationRoutes } from './routes/admin-applications.js'
 import { createAdminCategoryRoutes } from './routes/admin-categories.js'
 import { createAdminPaymentRoutes } from './routes/admin-payments.js'
+import { createAdminAuditRoutes } from './routes/admin-audit.js'
 import { healthRoutes } from './routes/health.js'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -38,6 +40,9 @@ export function createApp() {
       credentials: true,
     }),
   )
+
+  // Audit logging
+  app.use('/api/*', auditLogger())
 
   // Rate limiting: stricter for auth endpoints, general for API
   app.use('/api/auth/*', rateLimit({ windowMs: 60 * 1000, maxRequests: 10 }))
@@ -109,6 +114,7 @@ export function createApp() {
   app.route('/api/admin/applications', createAdminApplicationRoutes(authMw, adminMw))
   app.route('/api/admin/categories', createAdminCategoryRoutes(authMw, adminMw))
   app.route('/api/admin/payments', createAdminPaymentRoutes(authMw, adminMw))
+  app.route('/api/admin/audit', createAdminAuditRoutes(authMw, adminMw))
 
   return { app, env }
 }

@@ -324,6 +324,66 @@ export function useUploadReceipt(applicationId: string) {
   })
 }
 
+export function useUpdateOcrResult(applicationId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      receiptId,
+      data,
+    }: {
+      readonly receiptId: string
+      readonly data: {
+        readonly extracted_date?: string
+        readonly extracted_amount?: number
+        readonly extracted_store_name?: string
+      }
+    }) => {
+      const response = await apiPut<unknown>(
+        `/applications/receipts/${receiptId}/ocr`,
+        data,
+      )
+      if (!response.success) {
+        throw new Error(response.error ?? 'OCR結果の更新に失敗しました')
+      }
+      return response.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: applicationKeys.detail(applicationId),
+      })
+    },
+  })
+}
+
+export function useAddComment(applicationId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      comment,
+      commentType = 'GENERAL',
+    }: {
+      readonly comment: string
+      readonly commentType?: string
+    }) => {
+      const response = await apiPost<unknown>(
+        `/applications/${applicationId}/comments`,
+        { comment, comment_type: commentType },
+      )
+      if (!response.success) {
+        throw new Error(response.error ?? 'コメントの追加に失敗しました')
+      }
+      return response.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: applicationKeys.detail(applicationId),
+      })
+    },
+  })
+}
+
 export function useDeleteReceipt(applicationId: string) {
   const queryClient = useQueryClient()
 

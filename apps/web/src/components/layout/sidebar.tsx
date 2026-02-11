@@ -8,6 +8,8 @@ import {
   FilePlus,
   ClipboardCheck,
   CreditCard,
+  Tags,
+  Shield,
   LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -43,6 +45,8 @@ const memberNavItems: readonly NavItem[] = [
 const adminNavItems: readonly NavItem[] = [
   { href: '/admin/applications', label: '申請管理', icon: ClipboardCheck, adminOnly: true },
   { href: '/admin/payments', label: '振込データ', icon: CreditCard, adminOnly: true },
+  { href: '/admin/categories', label: 'カテゴリ管理', icon: Tags, adminOnly: true },
+  { href: '/admin/audit', label: '監査ログ', icon: Shield, adminOnly: true },
 ]
 
 interface SidebarProps {

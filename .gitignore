@@ -46,3 +46,12 @@ npm-debug.log*
 
 # Docker
 docker-compose.override.yml
+
+# Screenshots (test artifacts)
+*.png
+
+# Playwright MCP
+.playwright-mcp/
+
+# Local uploads
+uploads/

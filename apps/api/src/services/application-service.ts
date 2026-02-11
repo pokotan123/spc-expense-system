@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js'
+import { getNotificationService } from '../lib/notification.js'
 import { AppError } from '../middleware/error-handler.js'
 import { AuthError } from '../lib/jwt.js'
 import {
@@ -262,7 +263,7 @@ export function createApplicationService() {
       },
       include: {
         member: {
-          select: { id: true, memberId: true, name: true },
+          select: { id: true, memberId: true, name: true, email: true },
         },
       },
     })
@@ -275,6 +276,8 @@ export function createApplicationService() {
         commentType: 'SUBMISSION',
       },
     })
+
+    void getNotificationService().notifyApplicationSubmitted(updated)
 
     return updated
   }
@@ -327,6 +330,31 @@ export function createApplicationService() {
     })
   }
 
+  async function addComment(
+    applicationId: string,
+    memberId: string,
+    commentText: string,
+    commentType: string = 'GENERAL',
+  ) {
+    await findById(applicationId)
+
+    const created = await prisma.applicationComment.create({
+      data: {
+        expenseApplicationId: applicationId,
+        memberId,
+        comment: commentText,
+        commentType: commentType as 'GENERAL' | 'SUBMISSION' | 'APPROVAL' | 'RETURN' | 'REJECTION',
+      },
+      include: {
+        member: {
+          select: { id: true, memberId: true, name: true },
+        },
+      },
+    })
+
+    return created
+  }
+
   return Object.freeze({
     list,
     listByMember,
@@ -336,6 +364,7 @@ export function createApplicationService() {
     remove,
     submit,
     getDashboard,
+    addComment,
   })
 }
 

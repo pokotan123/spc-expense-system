@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
+import { getNotificationService } from '../lib/notification.js'
 import { AppError } from '../middleware/error-handler.js'
 import {
   ERROR_CODES,
@@ -27,6 +28,7 @@ interface ApplicationListItem {
     readonly id: string
     readonly memberId: string
     readonly name: string
+    readonly email: string
     readonly department: {
       readonly id: string
       readonly name: string
@@ -95,6 +97,7 @@ const APPLICATION_LIST_SELECT = {
       id: true,
       memberId: true,
       name: true,
+      email: true,
       department: {
         select: { id: true, name: true, code: true },
       },
@@ -242,6 +245,8 @@ export function createAdminApplicationService() {
       return result
     })
 
+    void getNotificationService().notifyApplicationApproved(updated)
+
     return updated
   }
 
@@ -281,6 +286,8 @@ export function createAdminApplicationService() {
 
       return result
     })
+
+    void getNotificationService().notifyApplicationReturned(updated, params.comment)
 
     return updated
   }
@@ -324,6 +331,8 @@ export function createAdminApplicationService() {
 
       return result
     })
+
+    void getNotificationService().notifyApplicationRejected(updated, params.comment)
 
     return updated
   }
