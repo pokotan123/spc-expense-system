@@ -36,4 +36,4 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/package.json ./apps/api/
 
 EXPOSE 3001
-CMD ["node", "apps/api/dist/index.js"]
+CMD npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && node apps/api/dist/index.js
