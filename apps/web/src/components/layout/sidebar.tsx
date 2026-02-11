@@ -14,7 +14,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,10 +42,11 @@ const memberNavItems: readonly NavItem[] = [
 ]
 
 const adminNavItems: readonly NavItem[] = [
-  { href: '/admin/applications', label: '申請管理', icon: ClipboardCheck, adminOnly: true },
-  { href: '/admin/payments', label: '振込データ', icon: CreditCard, adminOnly: true },
-  { href: '/admin/categories', label: 'カテゴリ管理', icon: Tags, adminOnly: true },
-  { href: '/admin/audit', label: '監査ログ', icon: Shield, adminOnly: true },
+  { href: '/dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
+  { href: '/admin/applications', label: '申請管理', icon: ClipboardCheck },
+  { href: '/admin/payments', label: '振込データ', icon: CreditCard },
+  { href: '/admin/categories', label: 'カテゴリ管理', icon: Tags },
+  { href: '/admin/audit', label: '監査ログ', icon: Shield },
 ]
 
 interface SidebarProps {
@@ -73,7 +73,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       </div>
 
       <div className="flex flex-1 flex-col gap-1">
-        {memberNavItems.map((item) => {
+        {(isAdmin ? adminNavItems : memberNavItems).map((item) => {
           const Icon = item.icon
           const isActive = item.href === '/dashboard'
             ? pathname === item.href
@@ -96,43 +96,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             </Link>
           )
         })}
-
-        {isAdmin ? (
-          <>
-            <Separator className="my-2" />
-            <div className="px-2">
-              <p className="text-xs font-semibold text-muted-foreground">
-                管理者メニュー
-              </p>
-            </div>
-            {adminNavItems.map((item) => {
-              const Icon = item.icon
-              const isActive = item.href === '/dashboard'
-                ? pathname === item.href
-                : pathname.startsWith(item.href)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onNavigate}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
-                    isActive
-                      ? 'bg-accent text-accent-foreground'
-                      : 'text-muted-foreground',
-                  )}
-                  aria-current={isActive ? 'page' : undefined}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              )
-            })}
-          </>
-        ) : null}
       </div>
 
-      <Separator className="my-2" />
+      <div className="my-2 h-px bg-border" />
 
       <AlertDialog>
         <AlertDialogTrigger asChild>
