@@ -32,6 +32,8 @@ interface ApplicationListParams {
 interface ApiDashboardResponse {
   readonly totalApplications: number
   readonly totalAmount: number
+  readonly draftCount: number
+  readonly draftAmount: number
   readonly byStatus: Readonly<Record<string, { readonly count: number; readonly amount: number }>>
   readonly recentApplications: readonly unknown[]
 }
@@ -48,6 +50,8 @@ export function useDashboardStats() {
       return {
         totalCount: d.totalApplications,
         totalAmount: d.totalAmount,
+        draftCount: d.draftCount ?? 0,
+        draftAmount: d.draftAmount ?? 0,
         pendingCount: (d.byStatus['SUBMITTED']?.count ?? 0),
         pendingAmount: (d.byStatus['SUBMITTED']?.amount ?? 0),
         approvedCount: (d.byStatus['APPROVED']?.count ?? 0),

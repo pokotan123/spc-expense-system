@@ -111,7 +111,9 @@ const APPLICATION_LIST_SELECT = {
 function buildWhereClause(
   filters: ListFilters,
 ): Prisma.ExpenseApplicationWhereInput {
-  const conditions: Prisma.ExpenseApplicationWhereInput[] = []
+  const conditions: Prisma.ExpenseApplicationWhereInput[] = [
+    { status: { not: APPLICATION_STATUSES.DRAFT } },
+  ]
 
   if (filters.status) {
     conditions.push({ status: filters.status as Prisma.EnumApplicationStatusFilter['equals'] })
@@ -135,10 +137,6 @@ function buildWhereClause(
 
   if (filters.category_id) {
     conditions.push({ internalCategoryId: filters.category_id })
-  }
-
-  if (conditions.length === 0) {
-    return {}
   }
 
   return { AND: conditions }
@@ -183,6 +181,14 @@ export function createAdminApplicationService() {
 
     if (!application) {
       throw new AppError('Application not found', ERROR_CODES.NOT_FOUND, 404)
+    }
+
+    if (application.status === APPLICATION_STATUSES.DRAFT) {
+      throw new AppError(
+        'Draft applications are not accessible by admin',
+        ERROR_CODES.FORBIDDEN,
+        403,
+      )
     }
 
     return application

@@ -65,6 +65,8 @@ export interface ExpenseApplication {
 export interface DashboardStats {
   readonly totalCount: number
   readonly totalAmount: number
+  readonly draftCount: number
+  readonly draftAmount: number
   readonly pendingCount: number
   readonly pendingAmount: number
   readonly approvedCount: number

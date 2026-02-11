@@ -296,14 +296,27 @@ export function createApplicationService() {
       orderBy: { createdAt: 'desc' },
     })
 
-    const totalApplications = applications.length
-    const totalAmount = applications.reduce(
+    const submittedApplications = applications.filter(
+      (app) => app.status !== APPLICATION_STATUSES.DRAFT,
+    )
+    const draftApplications = applications.filter(
+      (app) => app.status === APPLICATION_STATUSES.DRAFT,
+    )
+
+    const totalApplications = submittedApplications.length
+    const totalAmount = submittedApplications.reduce(
+      (sum, app) => sum + Number(app.amount),
+      0,
+    )
+
+    const draftCount = draftApplications.length
+    const draftAmount = draftApplications.reduce(
       (sum, app) => sum + Number(app.amount),
       0,
     )
 
     const byStatus: Record<string, { count: number; amount: number }> = {}
-    for (const app of applications) {
+    for (const app of submittedApplications) {
       const entry = byStatus[app.status] ?? { count: 0, amount: 0 }
       byStatus[app.status] = {
         count: entry.count + 1,
@@ -311,7 +324,7 @@ export function createApplicationService() {
       }
     }
 
-    const recentApplications = applications.slice(0, 10).map((app) =>
+    const recentApplications = submittedApplications.slice(0, 10).map((app) =>
       Object.freeze({
         id: app.id,
         applicationNumber: app.applicationNumber,
@@ -325,6 +338,8 @@ export function createApplicationService() {
     return Object.freeze({
       totalApplications,
       totalAmount,
+      draftCount,
+      draftAmount,
       byStatus,
       recentApplications,
     })

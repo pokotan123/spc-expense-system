@@ -82,7 +82,7 @@ describe('AdminApplicationService', () => {
   })
 
   describe('list', () => {
-    it('returns paginated results with no filters', async () => {
+    it('returns paginated results with no filters and excludes DRAFT', async () => {
       vi.mocked(prisma.expenseApplication.findMany).mockResolvedValue([
         mockApplication,
       ] as never)
@@ -97,7 +97,7 @@ describe('AdminApplicationService', () => {
       expect(result.totalPages).toBe(1)
       expect(prisma.expenseApplication.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {},
+          where: { AND: [{ status: { not: 'DRAFT' } }] },
           skip: 0,
           take: 20,
           orderBy: { createdAt: 'desc' },
@@ -105,7 +105,7 @@ describe('AdminApplicationService', () => {
       )
     })
 
-    it('filters by status', async () => {
+    it('filters by status while always excluding DRAFT', async () => {
       vi.mocked(prisma.expenseApplication.findMany).mockResolvedValue(
         [] as never,
       )
@@ -115,7 +115,7 @@ describe('AdminApplicationService', () => {
 
       expect(prisma.expenseApplication.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { AND: [{ status: 'SUBMITTED' }] },
+          where: { AND: [{ status: { not: 'DRAFT' } }, { status: 'SUBMITTED' }] },
         }),
       )
     })
@@ -131,7 +131,7 @@ describe('AdminApplicationService', () => {
       expect(prisma.expenseApplication.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            AND: [{ expenseDate: { gte: new Date('2025-01-01') } }],
+            AND: [{ status: { not: 'DRAFT' } }, { expenseDate: { gte: new Date('2025-01-01') } }],
           },
         }),
       )
@@ -148,7 +148,7 @@ describe('AdminApplicationService', () => {
       expect(prisma.expenseApplication.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            AND: [{ expenseDate: { lte: new Date('2025-12-31') } }],
+            AND: [{ status: { not: 'DRAFT' } }, { expenseDate: { lte: new Date('2025-12-31') } }],
           },
         }),
       )
@@ -164,7 +164,7 @@ describe('AdminApplicationService', () => {
 
       expect(prisma.expenseApplication.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { AND: [{ memberId: 'member-1' }] },
+          where: { AND: [{ status: { not: 'DRAFT' } }, { memberId: 'member-1' }] },
         }),
       )
     })
@@ -180,7 +180,7 @@ describe('AdminApplicationService', () => {
       expect(prisma.expenseApplication.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            AND: [{ member: { departmentId: 'dept-1' } }],
+            AND: [{ status: { not: 'DRAFT' } }, { member: { departmentId: 'dept-1' } }],
           },
         }),
       )
@@ -196,7 +196,7 @@ describe('AdminApplicationService', () => {
 
       expect(prisma.expenseApplication.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { AND: [{ internalCategoryId: 'cat-1' }] },
+          where: { AND: [{ status: { not: 'DRAFT' } }, { internalCategoryId: 'cat-1' }] },
         }),
       )
     })
@@ -262,6 +262,19 @@ describe('AdminApplicationService', () => {
       await expect(service.findById('nonexistent')).rejects.toMatchObject({
         statusCode: 404,
         code: ERROR_CODES.NOT_FOUND,
+      })
+    })
+
+    it('throws AppError 403 when application is DRAFT', async () => {
+      const draftApp = { ...mockApplication, status: 'DRAFT' }
+      vi.mocked(prisma.expenseApplication.findUnique).mockResolvedValue(
+        draftApp as never,
+      )
+
+      await expect(service.findById('app-1')).rejects.toThrow(AppError)
+      await expect(service.findById('app-1')).rejects.toMatchObject({
+        statusCode: 403,
+        code: ERROR_CODES.FORBIDDEN,
       })
     })
   })
@@ -409,7 +422,7 @@ describe('AdminApplicationService', () => {
       })
     })
 
-    it('throws 400 for invalid transition from DRAFT', async () => {
+    it('throws 403 when application is DRAFT', async () => {
       const draftApp = { ...mockApplication, status: 'DRAFT' }
       vi.mocked(prisma.expenseApplication.findUnique).mockResolvedValue(
         draftApp as never,
@@ -423,8 +436,8 @@ describe('AdminApplicationService', () => {
           finalAmount: 8000,
         }),
       ).rejects.toMatchObject({
-        statusCode: 400,
-        code: ERROR_CODES.INVALID_STATUS_TRANSITION,
+        statusCode: 403,
+        code: ERROR_CODES.FORBIDDEN,
       })
     })
 
@@ -487,7 +500,7 @@ describe('AdminApplicationService', () => {
       })
     })
 
-    it('throws 400 for invalid transition from DRAFT', async () => {
+    it('throws 403 when application is DRAFT', async () => {
       const draftApp = { ...mockApplication, status: 'DRAFT' }
       vi.mocked(prisma.expenseApplication.findUnique).mockResolvedValue(
         draftApp as never,
@@ -500,8 +513,8 @@ describe('AdminApplicationService', () => {
           comment: 'Invalid',
         }),
       ).rejects.toMatchObject({
-        statusCode: 400,
-        code: ERROR_CODES.INVALID_STATUS_TRANSITION,
+        statusCode: 403,
+        code: ERROR_CODES.FORBIDDEN,
       })
     })
 
@@ -594,7 +607,7 @@ describe('AdminApplicationService', () => {
       })
     })
 
-    it('throws 400 for invalid transition from DRAFT', async () => {
+    it('throws 403 when application is DRAFT', async () => {
       const draftApp = { ...mockApplication, status: 'DRAFT' }
       vi.mocked(prisma.expenseApplication.findUnique).mockResolvedValue(
         draftApp as never,
@@ -607,8 +620,8 @@ describe('AdminApplicationService', () => {
           comment: 'Reject',
         }),
       ).rejects.toMatchObject({
-        statusCode: 400,
-        code: ERROR_CODES.INVALID_STATUS_TRANSITION,
+        statusCode: 403,
+        code: ERROR_CODES.FORBIDDEN,
       })
     })
 

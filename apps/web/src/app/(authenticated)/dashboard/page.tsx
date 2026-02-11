@@ -11,6 +11,7 @@ import {
   CreditCard,
   Tags,
   Shield,
+  PenLine,
 } from 'lucide-react'
 import {
   Card,
@@ -245,40 +246,54 @@ function MemberDashboard({ memberName }: { readonly memberName: string }) {
       {statsLoading ? (
         <StatsSkeleton />
       ) : stats ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="全申請"
-            count={stats.totalCount}
-            amount={stats.totalAmount}
-            icon={FileText}
-            iconColor="bg-blue-50 text-blue-600"
-            href="/applications"
-          />
-          <StatCard
-            title="申請中"
-            count={stats.pendingCount}
-            amount={stats.pendingAmount}
-            icon={Clock}
-            iconColor="bg-yellow-50 text-yellow-600"
-            href="/applications?status=SUBMITTED"
-          />
-          <StatCard
-            title="承認済"
-            count={stats.approvedCount}
-            amount={stats.approvedAmount}
-            icon={CheckCircle}
-            iconColor="bg-green-50 text-green-600"
-            href="/applications?status=APPROVED"
-          />
-          <StatCard
-            title="却下"
-            count={stats.rejectedCount}
-            amount={stats.rejectedAmount}
-            icon={XCircle}
-            iconColor="bg-red-50 text-red-600"
-            href="/applications?status=REJECTED"
-          />
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="全申請"
+              count={stats.totalCount}
+              amount={stats.totalAmount}
+              icon={FileText}
+              iconColor="bg-blue-50 text-blue-600"
+              href="/applications"
+            />
+            <StatCard
+              title="申請中"
+              count={stats.pendingCount}
+              amount={stats.pendingAmount}
+              icon={Clock}
+              iconColor="bg-yellow-50 text-yellow-600"
+              href="/applications?status=SUBMITTED"
+            />
+            <StatCard
+              title="承認済"
+              count={stats.approvedCount}
+              amount={stats.approvedAmount}
+              icon={CheckCircle}
+              iconColor="bg-green-50 text-green-600"
+              href="/applications?status=APPROVED"
+            />
+            <StatCard
+              title="却下"
+              count={stats.rejectedCount}
+              amount={stats.rejectedAmount}
+              icon={XCircle}
+              iconColor="bg-red-50 text-red-600"
+              href="/applications?status=REJECTED"
+            />
+          </div>
+          {stats.draftCount > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                title="下書き"
+                count={stats.draftCount}
+                amount={stats.draftAmount}
+                icon={PenLine}
+                iconColor="bg-gray-50 text-gray-500"
+                href="/applications?status=DRAFT"
+              />
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       <Card>

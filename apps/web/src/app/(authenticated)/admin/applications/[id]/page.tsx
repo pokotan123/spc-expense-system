@@ -170,7 +170,7 @@ export default function AdminApplicationDetailPage({
 }) {
   const { id } = use(params)
   const { toast } = useToast()
-  const { data: application, isLoading } = useAdminApplicationDetail(id)
+  const { data: application, isLoading, error } = useAdminApplicationDetail(id)
 
   const approveMutation = useApproveApplication()
   const returnMutation = useReturnApplication()
@@ -260,6 +260,23 @@ export default function AdminApplicationDetailPage({
   }
 
   if (isLoading) return <DetailSkeleton />
+
+  if (error) {
+    const axiosError = error as { response?: { status?: number } }
+    const isForbidden = axiosError.response?.status === 403
+    return (
+      <div className="py-12 text-center">
+        <p className="text-muted-foreground">
+          {isForbidden
+            ? 'この申請は下書き状態のため閲覧できません'
+            : error instanceof Error ? error.message : '申請の取得に失敗しました'}
+        </p>
+        <Button variant="link" asChild className="mt-4">
+          <Link href="/admin/applications">一覧に戻る</Link>
+        </Button>
+      </div>
+    )
+  }
 
   if (!application) {
     return (

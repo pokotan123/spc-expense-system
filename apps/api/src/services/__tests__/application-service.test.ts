@@ -506,7 +506,7 @@ describe('ApplicationService', () => {
   // ──────────────────────── getDashboard ────────────────────────
 
   describe('getDashboard', () => {
-    it('returns dashboard stats', async () => {
+    it('returns dashboard stats excluding DRAFT from totals', async () => {
       const apps = [
         makeFakeApplication({
           status: 'DRAFT',
@@ -533,28 +533,42 @@ describe('ApplicationService', () => {
 
       const result = await service.getDashboard('member-1')
 
-      expect(result.totalApplications).toBe(3)
-      expect(result.totalAmount).toBe(35000)
-      expect(result.byStatus.DRAFT.count).toBe(2)
-      expect(result.byStatus.DRAFT.amount).toBe(15000)
+      expect(result.totalApplications).toBe(1)
+      expect(result.totalAmount).toBe(20000)
+      expect(result.draftCount).toBe(2)
+      expect(result.draftAmount).toBe(15000)
+      expect(result.byStatus.DRAFT).toBeUndefined()
       expect(result.byStatus.SUBMITTED.count).toBe(1)
       expect(result.byStatus.SUBMITTED.amount).toBe(20000)
     })
 
-    it('limits recentApplications to 10', async () => {
-      const apps = Array.from({ length: 15 }, (_, i) =>
+    it('limits recentApplications to 10 and excludes DRAFT', async () => {
+      const apps = [
         makeFakeApplication({
-          id: `app-${i}`,
+          id: 'draft-1',
+          status: 'DRAFT',
           amount: 1000,
           expenseDate: new Date('2026-01-15'),
-          createdAt: new Date('2026-01-10'),
+          createdAt: new Date('2026-01-11'),
         }),
-      )
+        ...Array.from({ length: 15 }, (_, i) =>
+          makeFakeApplication({
+            id: `app-${i}`,
+            status: 'SUBMITTED',
+            amount: 1000,
+            expenseDate: new Date('2026-01-15'),
+            createdAt: new Date('2026-01-10'),
+          }),
+        ),
+      ]
       mockPrisma.expenseApplication.findMany.mockResolvedValue(apps)
 
       const result = await service.getDashboard('member-1')
 
       expect(result.recentApplications).toHaveLength(10)
+      expect(
+        result.recentApplications.every((app) => app.status !== 'DRAFT'),
+      ).toBe(true)
     })
 
     it('returns frozen result', async () => {
@@ -572,16 +586,18 @@ describe('ApplicationService', () => {
 
       expect(result.totalApplications).toBe(0)
       expect(result.totalAmount).toBe(0)
+      expect(result.draftCount).toBe(0)
+      expect(result.draftAmount).toBe(0)
       expect(result.byStatus).toEqual({})
       expect(result.recentApplications).toHaveLength(0)
     })
 
-    it('maps recentApplications fields correctly', async () => {
+    it('maps recentApplications fields correctly (excludes DRAFT)', async () => {
       const apps = [
         makeFakeApplication({
           id: 'app-1',
           applicationNumber: 'EXP-202601-0001',
-          status: 'DRAFT',
+          status: 'SUBMITTED',
           amount: 10000,
           expenseDate: new Date('2026-01-15'),
           createdAt: new Date('2026-01-10'),
@@ -595,10 +611,62 @@ describe('ApplicationService', () => {
       expect(recent).toBeDefined()
       expect(recent?.id).toBe('app-1')
       expect(recent?.applicationNumber).toBe('EXP-202601-0001')
-      expect(recent?.status).toBe('DRAFT')
+      expect(recent?.status).toBe('SUBMITTED')
       expect(recent?.amount).toBe(10000)
       expect(typeof recent?.expenseDate).toBe('string')
       expect(typeof recent?.createdAt).toBe('string')
+    })
+
+    it('returns draftCount and draftAmount correctly', async () => {
+      const apps = [
+        makeFakeApplication({
+          id: 'draft-1',
+          status: 'DRAFT',
+          amount: 3000,
+          expenseDate: new Date('2026-01-15'),
+          createdAt: new Date('2026-01-10'),
+        }),
+        makeFakeApplication({
+          id: 'draft-2',
+          status: 'DRAFT',
+          amount: 7000,
+          expenseDate: new Date('2026-01-20'),
+          createdAt: new Date('2026-01-12'),
+        }),
+      ]
+      mockPrisma.expenseApplication.findMany.mockResolvedValue(apps)
+
+      const result = await service.getDashboard('member-1')
+
+      expect(result.draftCount).toBe(2)
+      expect(result.draftAmount).toBe(10000)
+      expect(result.totalApplications).toBe(0)
+      expect(result.totalAmount).toBe(0)
+    })
+
+    it('does not include DRAFT in recentApplications', async () => {
+      const apps = [
+        makeFakeApplication({
+          id: 'draft-1',
+          status: 'DRAFT',
+          amount: 5000,
+          expenseDate: new Date('2026-01-15'),
+          createdAt: new Date('2026-01-15'),
+        }),
+        makeFakeApplication({
+          id: 'submitted-1',
+          status: 'SUBMITTED',
+          amount: 8000,
+          expenseDate: new Date('2026-01-10'),
+          createdAt: new Date('2026-01-10'),
+        }),
+      ]
+      mockPrisma.expenseApplication.findMany.mockResolvedValue(apps)
+
+      const result = await service.getDashboard('member-1')
+
+      expect(result.recentApplications).toHaveLength(1)
+      expect(result.recentApplications[0]?.id).toBe('submitted-1')
     })
   })
 })
